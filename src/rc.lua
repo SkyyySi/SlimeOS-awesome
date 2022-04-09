@@ -16,13 +16,14 @@ local error_handling = require("modules.lib.error_handling")
 error_handling {}
 
 local config_auto_reload = require("modules.lib.config_auto_reload")
-config_auto_reload {}
+config_auto_reload()
 
 -- {{{ Variable definitions
 -- Themes define colors, icons, font and wallpapers.
 local globals = require("modules.lib.global")
 
-beautiful.init(gears.filesystem.get_configuration_dir().."themes/"..globals.theme.."/theme.lua")
+local theme_dir = gears.filesystem.get_configuration_dir().."themes/"..globals.theme
+beautiful.init(theme_dir.."/theme.lua")
 -- }}}
 
 -- {{{ Menu
