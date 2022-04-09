@@ -1,3 +1,6 @@
 [submodule "licenses/readable-licenses"]
 	path = licenses/readable-licenses
 	url = https://github.com/nevir/readable-licenses
+[submodule "src/modules/external/bling"]
+	path = src/modules/external/bling
+	url = https://github.com/BlingCorp/bling

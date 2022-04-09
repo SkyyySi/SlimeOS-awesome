@@ -2,6 +2,7 @@ local naughty = require("naughty")
 
 local function main(args)
 	args = {
+		notification_handler = args.notification_handler or "naughty", -- TODO: Add support for other handlers, like dunst or dbus
 	}
 
 	-- Check if awesome encountered an error during startup and fell back to
