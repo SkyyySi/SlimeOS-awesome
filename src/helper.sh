@@ -5,7 +5,7 @@
 AWESOME_CONFIG_DIR="$(dirname "$(basename "$0")")"
 export AWESOME_CONFIG_DIR
 
-gitam() {        
+gitamp() {        
 	if [ -z "$1" ] || [ -n "$2" ]; then
 		echo 'You need to provide a (qouted) commit message!'
 		return 1
@@ -13,4 +13,5 @@ gitam() {
 
 	git add "${AWESOME_CONFIG_DIR:-.}"
 	git commit -m "${1} | +%d/%m/%Y (%a) %T [%Z]"
+	git push
 }
