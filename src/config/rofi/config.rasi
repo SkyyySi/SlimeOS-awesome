@@ -1,0 +1,65 @@
+configuration {
+	location:       7;
+	xoffset:        48;
+	yoffset:        -56;
+	modi:           "drun,window,ssh,run";
+	font:           "Source Sans Pro Semibold 16";
+	combi-modi:     "window,drun,ssh";
+	display-drun:   "Start";
+	display-window: "Window";
+	display-ssh:    "SSH";
+	display-run:    "Commands";
+	show-icons:     true;
+	sidebar-mode:   true;
+}
+
+* {
+	/* Main colors */
+	background: rgba(45, 48, 59, 95%);
+	foreground: rgba(196, 203, 212, 100%);
+
+	/* Normal colors */
+	normal-background: @background;
+	normal-foreground: @foreground;
+
+	active-background: rgba(29, 31, 33, 17%);
+	active-foreground: rgba(101, 172, 255, 100%);
+
+	urgent-background: rgba(29, 31, 33, 17%);
+	urgent-foreground: rgba(204, 102, 102, 100%);
+
+	/* Selected colors */
+	selected-normal-background: rgba(64, 132, 214, 100%);
+	selected-normal-foreground: rgba(249, 249, 249, 100%);
+
+	selected-active-foreground: rgba(249, 249, 249, 100%);
+	selected-active-background: rgba(68, 145, 237, 100%);
+
+	selected-urgent-background: rgba(165, 66, 66, 100%);
+	selected-urgent-foreground: rgba(249, 249, 249, 100%);
+
+	/* Alternative colors */
+	alternate-normal-background: rgba(64, 69, 82, 59%);
+	alternate-normal-foreground: @normal-foreground;
+
+	alternate-active-background: rgba(75, 81, 96, 89%);
+	alternate-active-foreground: @active-foreground;
+
+	alternate-urgent-background: rgba(75, 81, 96, 90%);
+	alternate-urgent-foreground: @urgent-foreground;
+
+	/* Variables */
+	red:              rgba(220, 50, 47, 100%);
+	blue:             rgba(38, 139, 210, 100%);
+	lightbg:          rgba(238, 232, 213, 100%);
+	lightfg:          rgba(88, 104, 117, 100%);
+	border-color:     rgba(124, 131, 137, 100%);
+	separatorcolor:   rgba(29, 31, 33, 100%);
+	background-color: rgba(0, 0, 0, 0%);
+	spacing:          2;
+
+	spacing:   2;
+	margin:    2;
+	padding:   2;
+    scrollbar: true;
+}

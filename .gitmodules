@@ -4,3 +4,6 @@
 [submodule "src/modules/external/bling"]
 	path = src/modules/external/bling
 	url = https://github.com/BlingCorp/bling
+[submodule "src/modules/external/nice"]
+	path = src/modules/external/nice
+	url = https://github.com/SkyyySi/awesome-wm-nice-skyyysi

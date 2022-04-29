@@ -1,13 +1,32 @@
 #!/usr/bin/env lua
-local gears   = require("gears")
-local awful   = require("awful")
-local wibox   = require("wibox")
-local ruled   = require("ruled")
-local naughty = require("naughty")
+--local gears   = require("gears")
+--local awful   = require("awful")
+--local wibox   = require("wibox")
+--local ruled   = require("ruled")
+--local naughty = require("naughty")
 local lgi     = require("lgi")
 local cairo   = lgi.cairo
 
 local color = {}
+
+function color.normalized_rgb_to_hex(r, g, b, a)
+    if not a then a = 1 end
+
+	return string.format("#%02x%02x%02x%02x",
+		math.floor(r * 255),
+		math.floor(g * 255),
+		math.floor(b * 255),
+		math.floor(a * 255)
+	)
+end
+
+function color.rgb_to_hex(r, g, b, a)
+	if a then a = a / 255 end
+
+	return color.normalized_rgb_to_hex(r / 255, g / 255, b / 255, a)
+end
+
+color.rgb = color.rgb_to_hex -- shorthand
 
 function color.normalized_rgb_to_pattern(r, g, b, a)
 	if not a then a = 1 end
@@ -69,6 +88,10 @@ function color.hsl_to_pattern(h, s, l, a)
 	return cairo.Pattern.create_rgb(color.hsl_to_rgb(h, s, l, a))
 end
 
-color.hsl = color.hsl_to_pattern -- shorthand
+function color.hsl_to_hex(h, s, l, a)
+	return color.normalized_rgb_to_hex(color.hsl_to_rgb(h, s, l, a))
+end
+
+color.hsl = color.hsl_to_hex -- shorthand
 
 return color

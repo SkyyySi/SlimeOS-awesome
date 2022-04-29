@@ -11,7 +11,8 @@ local function main(args)
 		naughty.notification {
 			urgency = "critical",
 			title   = "Oops, an error happened"..(startup and " during startup!" or "!"),
-			message = message
+			message = message,
+			timeout = 0,
 		}
 	end)
 end

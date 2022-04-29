@@ -3,8 +3,28 @@ local gears         = require("gears")
 local awful         = require("awful")
 local beautiful     = require("beautiful")
 local hotkeys_popup = require("awful.hotkeys_popup")
+local globals       = require("modules.lib.globals")
+local naughty       = require("naughty")
 
-local awesome_menu = awful.menu {}
+-- Create an empty menu to make awesome not error out while waiting
+-- for it to be populated via a callback function.
+-- Create a launcher widget and a main menu
+local awesome_menu = {
+	main     = awful.menu { -- populate it with awesome's default menu
+		items = {
+			{ "awesome", {
+				{ "hotkeys", function() hotkeys_popup.show_help(nil, awful.screen.focused()) end },
+				{ "manual", globals.terminal .. " -e man awesome" },
+				{ "edit config", globals.editor .. " " .. awesome.conffile },
+				{ "restart", awesome.restart },
+				{ "quit", function() awesome.quit() end },
+			}, beautiful.awesome_icon },
+			{ "open terminal", globals.terminal },
+		}
+	},
+	settings = awful.menu {},
+	tools    = awful.menu {},
+}
 
 local function main(args)
 	args = {}
@@ -14,6 +34,12 @@ local function main(args)
 		[ -d "${cfgdir}" ] || mkdir -p "${cfgdir}"
 		xdg_menu --desktop GNOME --format awesome --root-menu "/etc/xdg/menus/arch-applications.menu" > "${cfgdir}/menus.lua"
 	]]
+
+	local apps = {}
+	apps.terminal     = globals.terminal     or "xterm"
+	apps.editor       = globals.editor       or globals.terminal .. " -e vi"
+	apps.file_browser = globals.file_browser or "dolphin"
+	apps.web_browser  = globals.web_browser  or "firefox"
 
 	awful.spawn.easy_async_with_shell(script, function(stdout, stderr, reason, exit_code)
 		local function sort_table_by_key(t)
@@ -34,7 +60,7 @@ local function main(args)
 			return output_table
 		end
 
-		local menu_parts = require('modules.external.archmenu')
+		local menu_parts = require("modules.external.archmenu")
 		local xdg_menu = {}
 
 		xdg_menu = sort_table_by_key(menu_parts)
@@ -42,8 +68,8 @@ local function main(args)
 		-- Entries related to awesome itself
 		local menu_awesome = {
 			{ "Show hotkeys", function() hotkeys_popup.show_help(nil, awful.screen.focused()) end },
-			{ "Show manual", (terminal or "xterm") .. " -e man awesome" },
-			{ "Edit config", (editor_cmd or "xterm -e vi") .. " " .. config_dir },
+			{ "Show manual", apps.terminal .. " -e man awesome" },
+			{ "Edit config", apps.editor .. " " .. globals.config_dir },
 			{ "Restart awesome", awesome.restart },
 			{ "Quit awesome", function() awesome.quit() end },
 		}
@@ -58,12 +84,12 @@ local function main(args)
 		}
 
 		local menu_template = {
-			{ "Awesome",      menu_awesome, beautiful.awesome_icon  },
-			{ "Power",        menu_power,   beautiful.icon.power    },
-			--{ "Applications", xdg_menu,     beautiful.icon.app      },
-			{ "Terminal",     terminal,     beautiful.icon.terminal },
-			{ "File manager", filemanager,  beautiful.icon.folder   },
-			{ "Web browser",  webbrowser,   beautiful.icon.web      },
+			{ "Awesome",      menu_awesome,      beautiful.awesome_icon  or nil },
+			{ "Power",        menu_power,        beautiful.icon.power    or nil },
+			--{ "Applications", xdg_menu,          beautiful.icon.app      or nil },
+			{ "Terminal",     apps.terminal,     beautiful.icon.terminal or nil },
+			{ "File manager", apps.file_browser, beautiful.icon.folder   or nil },
+			{ "Web browser",  apps.web_browser,  beautiful.icon.web      or nil },
 			{ "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯" },
 		}
 
@@ -92,25 +118,26 @@ local function main(args)
 			{ "Users and Groups",      "lxqt-admin-user"                   },
 		}
 
-		local terminal = terminal or "xterm"
 		local tools_menu = {
 			{ "Settings", "lxqt-config" },
-			{ "Terminal", terminal },
-			{ "Terminal (as root)", terminal .. [[ -e lxqt-sudo "${SHELL:-/usr/bin/env sh}"]] },
+			{ "Terminal", apps.terminal },
+			{ "Terminal (as root)", apps.terminal .. [[ -e lxqt-sudo "${SHELL:-/usr/bin/env sh}"]] },
 			{ "Kill app (xkill)", "xkill" },
 		}
 
 		-- Assemble all menus into one
 		awesome_menu = {
 			-- Left click
-			left = awful.menu(menu_template),
+			main = awful.menu(menu_template),
 
 			-- Middle click
-			middle = awful.menu(settings_menu),
+			settings = awful.menu(settings_menu),
 
 			-- Right click
-			right = awful.menu(tools_menu),
+			tools = awful.menu(tools_menu),
 		}
+
+		awesome.emit_signal("slimeos::menu_is_ready", awesome_menu)
 	end)
 
 	return awesome_menu

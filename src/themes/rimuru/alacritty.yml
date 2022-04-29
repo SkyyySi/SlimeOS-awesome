@@ -1,0 +1,35 @@
+window:
+  opacity: 0.95
+
+font:
+  normal:
+    family: MesloLGS NF
+  size: 11.0
+
+draw_bold_text_with_bright_colors: false
+colors:
+  primary:
+    background: "#11131b"
+    foreground: "#e8f2ff"
+  normal:
+    black:   "#08090d"
+    red:     "#b35656"
+    green:   "#5ba65b"
+    yellow:  "#b8b84b"
+    blue:    "#5e81ac"
+    magenta: "#9f74b8"
+    cyan:    "#88c0d0"
+    white:   "#f3f1f2"
+  bright:
+    black:   "#161924"
+    red:     "#f59393"
+    green:   "#94f594"
+    yellow:  "#f5f593"
+    blue:    "#94d5f5"
+    magenta: "#e8a5e8"
+    cyan:    "#94f5e5"
+    white:   "#fcfdff"
+
+cursor:
+  style:
+    shape: Beam

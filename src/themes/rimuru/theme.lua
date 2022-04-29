@@ -8,25 +8,72 @@ local gfs           = require("gears.filesystem")
 local util          = require("modules.lib.util")
 local theme_dir     = util.script_path()
 local color         = require("modules.lib.color")
+local rgb = color.rgb
+local hsl = color.hsl
 
 local t = {}
 
+t.palette = {
+	hsl(200, 70, 84),
+	hsl(206, 46, 56),
+	hsl(219, 35, 58),
+	hsl(222, 43, 39),
+	hsl(224, 40, 34),
+	hsl(229, 51, 18),
+
+	hsl(330, 7, 95),
+
+	hsl(47, 53, 83),
+	hsl(46, 16, 54),
+
+	hsl(24, 75, 92),
+	hsl(220, 1, 45),
+	hsl(230, 6, 20),
+	hsl(249, 20, 13),
+	hsl(228, 22, 9),
+}
+
+t.accent_primary_bright   = hsl(200, 70, 84) -- #b9dff2
+t.accent_primary_brighter = hsl(206, 46, 56) -- #5b95c2
+t.accent_primary_medium   = hsl(219, 35, 58) -- #6e88b9
+t.accent_primary_darker   = hsl(222, 43, 39) -- #38528e
+t.accent_primary_dark     = hsl(229, 51, 18) -- #161f45
+
+t.accent_secondary_bright   = hsl(24, 75, 92) -- #f9e7db
+t.accent_secondary_brighter = hsl(47, 53, 83) -- #eae0bc
+t.accent_secondary_medium   = hsl(220, 1, 45) -- #717273
+t.accent_secondary_darker   = hsl(46, 16, 54) -- #9c9376
+t.accent_secondary_dark     = hsl(230, 6, 20) -- #2f3036
+
+t.accent_tertiary_bright   = hsl(345, 76, 80) -- #f3a5b8
+t.accent_tertiary_brighter = hsl(348, 41, 62) -- #c67686
+t.accent_tertiary_medium   = hsl(350, 33, 49) -- #a65461
+t.accent_tertiary_darker   = hsl(348, 44, 26) -- #5F2531
+t.accent_tertiary_dark     = hsl(348, 48, 20) -- #4b1b24
+
+t.accent_urgent        = t.accent_urgent_bright
+
+t.accent_bright        = hsl(330, 7, 95) -- #f3f1f2
+t.accent_medium        = hsl(220, 1, 45) -- #717274
+t.accent_dark          = hsl(228, 22, 9) -- #11131b
+
 t.font = "Source Sans Pro, 12"
-t.monospace_font = "Source Code Pro, 12"
+t.monospace_font = "MesloLGS NF, Bold 12"
+t.font = t.monospace_font
 
-t.bg_normal   = color.hsl(229, 51, 18) -- "#222222"
-t.bg_focus    = "#535d6c"
-t.bg_urgent   = "#ff0000"
-t.bg_minimize = "#444444"
-t.bg_systray  = t.bg_normal
+t.bg_normal   = t.accent_primary_dark
+t.bg_focus    = t.accent_primary_darker
+t.bg_urgent   = t.accent_urgent
+t.bg_minimize = t.accent_primary_medium
+t.bg_systray  = t.bg_focus
 
-t.fg_normal   = "#aaaaaa"
-t.fg_focus    = "#ffffff"
-t.fg_urgent   = "#ffffff"
-t.fg_minimize = "#ffffff"
+t.fg_normal   = t.accent_secondary_brighter
+t.fg_focus    = t.accent_bright
+t.fg_urgent   = t.accent_bright
+t.fg_minimize = t.accent_bright
 
-t.useless_gap         = dpi(0)
-t.border_width        = dpi(2)
+t.useless_gap         = dpi(5)
+t.border_width        = dpi(0)
 t.border_color_normal = "#000000"
 t.border_color_active = "#535d6c"
 t.border_color_marked = "#91231c"
@@ -44,6 +91,11 @@ t.border_color_marked = "#91231c"
 -- Example:
 --t.taglist_bg_focus = "#ff0000"
 
+t.titlebar_bg_normal = hsl(206, 46, 56)
+t.titlebar_bg_focus  = hsl(200, 68, 84)
+t.titlebar_fg_normal = hsl(222, 22, 9)
+t.titlebar_fg_focus  = hsl(222, 22, 9)
+
 -- Generate taglist squares:
 local taglist_square_size = dpi(4)
 t.taglist_squares_sel = theme_assets.taglist_squares_sel(taglist_square_size, t.fg_normal)
@@ -58,9 +110,9 @@ t.taglist_squares_unsel = theme_assets.taglist_squares_unsel(taglist_square_size
 -- Variables set for theming the menu:
 -- menu_[bg|fg]_[normal|focus]
 -- menu_[border_color|border_width]
-t.menu_submenu_icon = theme_dir.."submenu.png"
-t.menu_height       = dpi(15)
-t.menu_width        = dpi(100)
+--t.menu_submenu_icon = theme_dir.."submenu.png"
+t.menu_height = dpi(30)
+t.menu_width  = dpi(250)
 
 -- You can add as many variables as
 -- you wish and access them by using
@@ -68,6 +120,32 @@ t.menu_width        = dpi(100)
 --t.bg_widget = "#cc0000"
 
 -- Define the image to load
+t.titlebar_close_button_normal = theme_dir.."titlebar/edited/close_focus.png"
+t.titlebar_close_button_focus  = theme_dir.."titlebar/edited/close_focus.png"
+
+t.titlebar_minimize_button_normal = "/usr/share/themes/Breeze/assets/titlebutton-minimize@2.png"
+t.titlebar_minimize_button_focus  = "/usr/share/themes/Breeze/assets/titlebutton-minimize@2.png"
+
+t.titlebar_ontop_button_normal_inactive = "/usr/share/icons/breeze/actions/24/window-keep-above.svg"
+t.titlebar_ontop_button_focus_inactive  = "/usr/share/icons/breeze/actions/24/window-keep-above.svg"
+t.titlebar_ontop_button_normal_active   = "/usr/share/icons/breeze/actions/24/window-keep-below.svg"
+t.titlebar_ontop_button_focus_active    = "/usr/share/icons/breeze/actions/24/window-keep-below.svg"
+
+t.titlebar_sticky_button_normal_inactive = "/usr/share/icons/breeze/actions/24/window-pin.svg"
+t.titlebar_sticky_button_focus_inactive  = "/usr/share/icons/breeze/actions/24/window-pin.svg"
+t.titlebar_sticky_button_normal_active   = "/usr/share/icons/breeze/actions/24/window-unpin.svg"
+t.titlebar_sticky_button_focus_active    = "/usr/share/icons/breeze/actions/24/window-unpin.svg"
+
+t.titlebar_floating_button_normal_inactive = theme_dir.."titlebar/edited/floating_focus_inactive.png"
+t.titlebar_floating_button_focus_inactive  = theme_dir.."titlebar/edited/floating_focus_inactive.png"
+t.titlebar_floating_button_normal_active   = theme_dir.."titlebar/edited/floating_focus_active.png"
+t.titlebar_floating_button_focus_active    = theme_dir.."titlebar/edited/floating_focus_active.png"
+
+t.titlebar_maximized_button_normal_inactive = "/usr/share/themes/Breeze/assets/titlebutton-maximize@2.png"
+t.titlebar_maximized_button_focus_inactive  = "/usr/share/themes/Breeze/assets/titlebutton-maximize@2.png"
+t.titlebar_maximized_button_normal_active   = "/usr/share/themes/Breeze/assets/titlebutton-maximize@2.png"
+t.titlebar_maximized_button_focus_active    = "/usr/share/themes/Breeze/assets/titlebutton-maximize@2.png"
+--[[
 t.titlebar_close_button_normal = theme_dir.."titlebar/close_normal.png"
 t.titlebar_close_button_focus  = theme_dir.."titlebar/close_focus.png"
 
@@ -93,7 +171,7 @@ t.titlebar_maximized_button_normal_inactive = theme_dir.."titlebar/maximized_nor
 t.titlebar_maximized_button_focus_inactive  = theme_dir.."titlebar/maximized_focus_inactive.png"
 t.titlebar_maximized_button_normal_active   = theme_dir.."titlebar/maximized_normal_active.png"
 t.titlebar_maximized_button_focus_active    = theme_dir.."titlebar/maximized_focus_active.png"
-
+--]]
 t.wallpaper = theme_dir.."background.png"
 
 -- You can use your own layout icons like this:
@@ -130,5 +208,14 @@ rnotification.connect_signal('request::rules', function()
 		properties = { bg = '#ff0000', fg = '#ffffff' }
 	}
 end)
+
+-- bling
+t.flash_focus_start_opacity = 0.85
+
+-- icons
+
+t.icon = {
+	
+}
 
 return t

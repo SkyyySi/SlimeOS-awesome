@@ -2,6 +2,11 @@
 	"Lua.diagnostics.globals": [
 		"client",
 		"awesome",
-		"screen"
+		"screen",
+		"mouse",
+		"mousegrabber"
+	],
+	"Lua.diagnostics.disable": [
+		"lowercase-global"
 	]
 }

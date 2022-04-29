@@ -1,0 +1,24 @@
+/*
+ * This file only exists so I have an easier time refferencing the colors,
+ * since VScode's tooling allows to highlight the color directly
+ * in the editor itself.
+ */
+.palette#rimuru {
+	color: hsl(200, 70%, 84%);
+	color: hsl(206, 46%, 56%);
+	color: hsl(219, 35%, 58%);
+	color: hsl(222, 43%, 39%);
+	color: hsl(224, 40%, 34%);
+	color: hsl(229, 51%, 18%);
+
+	color: hsl(330, 7%, 95%);
+
+	color: hsl(47, 53%, 83%);
+	color: hsl(46, 16%, 54%);
+
+	color: hsl(24, 75%, 92%);
+	color: hsl(220, 1%, 45%);
+	color: hsl(230, 6%, 20%);
+	color: hsl(249, 20%, 13%);
+	color: hsl(228, 22%, 9%);
+}

@@ -57,7 +57,7 @@ mylib.toast_bread(bread)
 
 ## Refferences / further reading
 
-[Awesome window manager API documentation](https://awesomewm.org/apidoc/)
+ - [Awesome window manager API documentation](https://awesomewm.org/apidoc/)
 
 ---
 
