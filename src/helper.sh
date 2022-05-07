@@ -18,7 +18,7 @@ gitamp() {
 	git add "${AWESOME_CONFIG_DIR:-.}"
 	echo
 	echo " ==> Commiting changes <== "
-	git commit -m "${1} | +%d/%m/%Y (%a) %T [%Z]"
+	git commit -m "${1} | $(date '+%d/%m/%Y (%a) %T [%Z]')"
 	echo
 	echo " ==> Pushing changes (to $(git branch --show-current) branch) <== "
 	git push
