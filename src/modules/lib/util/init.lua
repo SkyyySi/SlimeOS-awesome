@@ -30,6 +30,18 @@ function util.default(value, default)
 	return value
 end
 
+-- Calculates the average of all numbers in an array.
+---@param t number[]
+function util.average(t)
+	local sum = 0
+
+	for _,v in pairs(t) do -- Get the sum of all numbers in t
+		sum = sum + v
+	end
+
+	return sum / #t
+end
+
 -- When runing as a script, this function will return the path
 --- where it is located.
 ---

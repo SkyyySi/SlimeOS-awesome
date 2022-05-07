@@ -30,6 +30,9 @@ local util = require("modules.lib.util")
 local config_auto_reload = require("modules.lib.config_auto_reload")
 config_auto_reload()
 
+local titlebars = require("modules.widgets.titlebars")
+titlebars()
+
 local kill_all_but_one = require("modules.lib.kill_all_but_one")
 kill_all_but_one {
 	pattern = "^pasystray$"
@@ -417,14 +420,9 @@ screen.connect_signal("request::desktop_decoration", function(s)
 	s.widgets.month_calendar = awful.widget.calendar_popup.month {
 		style_header = {
 			shape = function(cr,w,h) gears.shape.rounded_rect(cr,w,h, util.scale(8)) end,
-			--markup = function(text) return string.format([[<i> %s </i>]], text) end,
 			markup = function(text)
-				--f = text
-				--notify(util.get_locals().text)
-				--notify(util.strfmt [[{text}]])
-				--notify(util.get_stack_level())
-				return util.strfmt([[{text}]])
-				--return string.format([[<i> %s </i>]], text)--util.strfmt [[<i> {util.lua_escape(text)} </i>]]
+				return util.strfmt([[<i> {text} </i>]])
+				--return string.format([[<i> %s </i>]], text)
 			end,
 			border_width = util.scale(1),
 			border_color = beautiful.accent_primary_bright,
@@ -674,7 +672,7 @@ nice {
 }
 --]]
 
---[[ ]]
+--[[ ] ]
 client.connect_signal("request::titlebars", function(c)
 	-- buttons for the titlebar
 	local buttons = {

@@ -1,8 +1,9 @@
-local awful = require("awful")
+local awful     = require("awful")
 local wibox     = require("wibox") ---@type wibox
 local gears     = require("gears")
 local beautiful = require("beautiful")
 local buttonify = require("modules.lib.buttonify")
+local util      = require("modules.lib.util")
 
 local function make_button(widget, args)
 	args = {
@@ -34,6 +35,134 @@ local function make_button(widget, args)
 	return new_widget
 end
 
+local client_volumes = {} ---@type table<integer, integer>
+---@param sink_id integer
+local function get_average_volume_of_sink_input(sink_id)
+	local sink_id_str = tostring(sink_id)
+	local command = {"pulsemixer", "--list-sinks"}
+	awful.spawn.easy_async(command, function(stdout) ---@param stdout string
+		for _,line in pairs(util.split(stdout, "\n")) do
+			line = line:match("Sink%sinput:%s.*ID:%ssink%-input%-.*"..sink_id_str..".*")
+			if line then
+				line = line:match("Volumes:%s%[.*%]")
+					:gsub("Volumes:", "")
+					:gsub("'", "")
+					:gsub("%s", "")
+					:gsub("%[", "")
+					:gsub("%]", "")
+					:gsub("%%", "")
+
+				local vols = util.split(line, ",") ---@type string[]|integer[]
+
+				for i,v in pairs(vols) do
+					vols[i] = tonumber(v)
+				end
+
+				local vol = math.floor(util.average(vols))
+				client_volumes[sink_id] = vol
+				awesome.emit_signal("pulseaudio::volume_of_sink_input", sink_id, vol)
+
+				break
+			end
+		end
+	end)
+end
+
+local clients_pids_with_pulse_sink_input_id = {} ---@type table<integer, integer>
+local pulse_sink_input_id_with_clients_pids = {} ---@type table<integer, integer>
+local function get_clients_pids_with_pulse_sink_input_id()
+	clients_pids_with_pulse_sink_input_id = {}
+	local command = [[pacmd list-sink-inputs | tr '\n' '\r' | perl -pe 's/.*? *index: ([0-9]+).+?application\.process\.id = "([^\r]+)"\r.+?(?=index:|$)/\2:\1\r/g' | tr '\r' '\n']]
+
+	awful.spawn.easy_async_with_shell(command, function(stdout)
+		for _,line in pairs(util.split(stdout, "\n")) do
+			local pid, id = unpack(util.split(line, ":")) ---@type string
+			local pid_n = tonumber(pid)
+			local id_n = tonumber(id)
+			clients_pids_with_pulse_sink_input_id[pid_n] = id_n
+			pulse_sink_input_id_with_clients_pids[id_n] = pid_n
+			awesome.emit_signal("pulseaudio::client_is_sink_input", pid_n, id_n)
+		end
+	end)
+end
+
+gears.timer {
+	timeout   = 0.5,
+	call_now  = true,
+	autostart = true,
+	callback  = function()
+		for i,v in pairs(clients_pids_with_pulse_sink_input_id) do
+			get_average_volume_of_sink_input(v)
+		end
+
+		get_clients_pids_with_pulse_sink_input_id()
+	end,
+}
+
+---@param vol integer
+---@param sink_id integer
+local function set_client_volume(vol, sink_id)
+	awful.spawn({"pulsemixer", "--set-volume", tostring(vol), "--id", "sink-input-"..tostring(sink_id)})
+end
+
+---@param args table<string, any>
+---@return wibox.widget widget
+local function volume_slider(args)
+	args = {
+		client = args.client,
+	}
+
+	local pid = args.client.pid ---@type integer
+	local sink_id ---@type integer
+
+	---@type wibox.widget.slider
+	local slider = wibox.widget {
+		bar_shape           = gears.shape.rounded_bar,
+		bar_height          = 4,
+		bar_color           = beautiful.border_color,
+		handle_color        = beautiful.bg_normal,
+		handle_shape        = gears.shape.circle,
+		handle_border_color = beautiful.border_color,
+		handle_border_width = 1,
+		minimum             = 0,
+		maximum             = 100,
+		value               = 50,
+		visible             = false,
+		forced_width        = util.scale(200),
+		widget              = wibox.widget.slider,
+	}
+
+	local widget = wibox.widget {
+		{
+			widget = slider,
+		},
+		layout = wibox.layout.fixed.horizontal,
+	}
+
+	if clients_pids_with_pulse_sink_input_id[pid] then
+		slider.visible = true
+	end
+
+	slider:connect_signal("property::value", function(w)
+		set_client_volume(w.value, sink_id)
+	end)
+
+	awesome.connect_signal("pulseaudio::volume_of_sink_input", function(sink_id_sig, vol)
+		if pulse_sink_input_id_with_clients_pids[sink_id_sig] == pid then
+			sink_id = sink_id_sig
+			slider:set_value(vol)
+		end
+	end)
+
+	awesome.connect_signal("pulseaudio::client_is_sink_input", function(pid_sig, sink_id_sig)
+		if pid_sig == pid then
+			slider.visible = true
+		end
+	end)
+
+	return widget
+end
+
 local function main(args)
 	client.connect_signal("request::titlebars", function(c)
 		-- buttons for the titlebar
@@ -47,6 +176,8 @@ local function main(args)
 		}
 
 		local titlebars = {}
+
+		get_clients_pids_with_pulse_sink_input_id()
 
 		titlebars.top = awful.titlebar(c, {
 			position = "top",
@@ -78,6 +209,9 @@ local function main(args)
 									hover  = "#2060C0",
 									press  = "#3090FF",
 								}),
+								volume_slider {
+									client = c,
+								},
 								layout = wibox.layout.fixed.horizontal,
 							},
 							margins = 2,
