@@ -4,7 +4,8 @@
 		"awesome",
 		"screen",
 		"mouse",
-		"mousegrabber"
+		"mousegrabber",
+		"tag"
 	],
 	"Lua.diagnostics.disable": [
 		"lowercase-global"

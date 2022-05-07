@@ -11,17 +11,14 @@ local util = {}
 
 -- Converts any type into a boolean, in the same way
 --- ```
---- if x then
+--- not not x
 --- ```
---- does (because this function is just a wrapper for that).
+--- does (because this function is just a more
+--- readable wrapper for that).
 ---@param x any
 ---@return boolean
 function util.tobool(x)
-	if x then
-		return true
-	end
-
-	return false
+	return not not x
 end
 
 --- Returns `value` it it is not nil, otherwise returns `default`.
@@ -82,5 +79,78 @@ function util.scale(x)
 
 	return x * dpi
 end
+
+-- Escapes a string for lua's pattern matching.
+---@param s string
+---@return string
+function util.lua_escape(s)
+	return s:gsub("%%", "%%%%")
+		:gsub("^%^", "%%^")
+		:gsub("%$$", "%%$")
+		:gsub("%(", "%%(")
+		:gsub("%)", "%%)")
+		:gsub("%.", "%%.")
+		:gsub("%[", "%%[")
+		:gsub("%]", "%%]")
+		:gsub("%*", "%%*")
+		:gsub("%+", "%%+")
+		:gsub("%-", "%%-")
+		:gsub("%?", "%%?")
+end
+
+-- Evaluates a string and returns its output.
+---
+--- Usage:
+--- ```
+--- x = "3 * 7 + 4" ---@type string
+--- util.eval(x)
+--- --> 25
+--- ```
+---@param s string
+---@return any
+function util.eval(s)
+	return load("return " .. s)()
+end
+
+-- Format a string using a nicer syntax than `string.format`.
+--- WARNING: This uses `load()`, which will run **any** code
+--- you put inbetween {curly brackets}! NEVER, EVER pass
+--- a string into this without thought!
+---
+--- Usage:
+--- ```
+--- name = "Tom"
+--- age = 34
+--- util.strfmt [[Hello, my name is {name} and I am {age} years old.]]
+--- --> "Hello, my name is Tom and I am 52 years old."
+--- ```
+---
+--- ```
+--- a = 6
+--- b = 4
+--- util.strfmt [[The resoult of a * b is {a * b}]]
+--- ```
+---@param s string
+---@return string
+function util.strfmt(s)
+	for i in s:gmatch("{([%g%s]+)}") do
+		i = tostring(i) ---@type string
+		local v = "" ---@type string
+
+		-- A shorthand for writing util.strfmt [[x = {x}]],
+		-- just write util.strfmt [[{x = }]]
+		if i:find("[%s\t\n]*=[%s\t\n]*$") then
+			v = i .. tostring(util.eval(i:gsub("[%s\t\n]*=[%s\t\n]*$", "")))
+		else
+			v = tostring(util.eval(i))
+		end
+
+		i = util.lua_escape(i)
+		s = s:gsub("{"..i.."}", v)
+	end
+
+	return s
+end
+--- print(util.strfmt("Foo {x} bar"))
 
 return util

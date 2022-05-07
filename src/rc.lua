@@ -378,6 +378,73 @@ screen.connect_signal("request::desktop_decoration", function(s)
 
 	s.widgets.layoutbox = awful.widget.layoutbox()
 
+	s.boxes = {}
+	s.boxes.info = wibox {
+		width   = util.scale(300),
+		height  = util.scale(500),
+		screen  = s,
+		visible = true,
+		ontop   = false,
+		type    = "normal",
+		bg      = gears.color.transparent,
+		shape   = function(cr,w,h) gears.shape.rounded_rect(cr,w,h, util.scale(8) + 1) end,
+	}
+
+	awful.placement.right(s.boxes.info, { margins = { right = util.scale(10) } })
+
+	local xmlreader = require("xmlreader")
+	-- based on [this StackOverflow answer](https://stackoverflow.com/a/40635620/15759700).
+	---@param xml string
+	local function parse_xml(xml)
+		local outstr = ""
+		local r = assert(xmlreader.from_string(xml))
+
+		while r:read() do
+			local leadingws = ("    "):rep(r:depth())
+
+			if r:node_type() == "element" then
+				io.write(("%s%s:"):format(leadingws, r:name()))
+
+				while r:move_to_next_attribute() do
+					io.write((" %s=%q"):format(r:name(), r:value()))
+				end
+
+				io.write("\n")
+			end
+		end
+	end
+
+	s.widgets.month_calendar = awful.widget.calendar_popup.month {
+		style_header = {
+			shape = function(cr,w,h) gears.shape.rounded_rect(cr,w,h, util.scale(8)) end,
+			markup = function(text) return string.format([[<i> %s </i>]], text) end,
+			border_width = util.scale(1),
+			border_color = beautiful.accent_primary_bright,
+			bg_color = beautiful.accent_primary_medium,
+		},
+	}
+	--s.widgets.month_calendar:attach(s.widgets.textclock, "br")
+	s.widgets.textclock:connect_signal("button::release", function()
+		s.widgets.month_calendar:toggle()
+		awful.placement.bottom_right(s.widgets.month_calendar, {
+			honor_workarea = true,
+		})
+	end)
+
+	s.boxes.info.widget = wibox.widget {
+		{
+			markup = [[
+<b>Hello, world!</b>
+]],
+			widget = wibox.widget.textbox,
+		},
+		bg                 = beautiful.accent_dark,
+		shape              = function(cr,w,h) gears.shape.rounded_rect(cr,w,h, util.scale(8)) end,
+		shape_border_color = beautiful.accent_bright,
+		shape_border_width = util.scale(2),
+		widget             = wibox.widget.background,
+	}
+
 	-- Create the wibar
 	s.panels = {}
 
@@ -792,6 +859,23 @@ client.connect_signal("request::titlebars", function(c)
 		bg     = beautiful.accent_dark,
 		widget = wibox.container.background,
 	}
+
+	c:connect_signal("property::geometry", function(_)
+		local bg = gears.color {
+			type = "linear",
+			from = { 0, 0 },
+			to   = { c.width, c.height},
+			stops = {
+				{ 0, beautiful.accent_primary_brighter },
+				{ 1, beautiful.accent_primary_medium },
+			}
+		}
+
+		titlebars.top.widget.widget.widget.bg    = bg
+		titlebars.bottom.widget.widget.widget.bg = bg
+		titlebars.left.widget.widget.widget.bg   = bg
+		titlebars.right.widget.widget.widget.bg  = bg
+	end)
 end)
 --]]
 -- {{{ Notifications
