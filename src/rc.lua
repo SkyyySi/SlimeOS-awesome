@@ -417,7 +417,15 @@ screen.connect_signal("request::desktop_decoration", function(s)
 	s.widgets.month_calendar = awful.widget.calendar_popup.month {
 		style_header = {
 			shape = function(cr,w,h) gears.shape.rounded_rect(cr,w,h, util.scale(8)) end,
-			markup = function(text) return string.format([[<i> %s </i>]], text) end,
+			--markup = function(text) return string.format([[<i> %s </i>]], text) end,
+			markup = function(text)
+				--f = text
+				--notify(util.get_locals().text)
+				--notify(util.strfmt [[{text}]])
+				--notify(util.get_stack_level())
+				return util.strfmt([[{text}]])
+				--return string.format([[<i> %s </i>]], text)--util.strfmt [[<i> {util.lua_escape(text)} </i>]]
+			end,
 			border_width = util.scale(1),
 			border_color = beautiful.accent_primary_bright,
 			bg_color = beautiful.accent_primary_medium,

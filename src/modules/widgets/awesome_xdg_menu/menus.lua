@@ -286,12 +286,10 @@ menu_parts["Zubehör"] = {
 	{"Zeichen", "/usr/bin/gnome-characters"},
 	{"Zeichentabelle", "gucharmap"},
 	{"Zwischenablageverwaltung", "xfce4-clipman", "/usr/share/icons/hicolor/16x16/apps/xfce4-clipman-plugin.png" },
-	{"compton", "compton", "/usr/share/icons/hicolor/48x48/apps/compton.png" },
 	{"gedit", "gedit "},
 	{"ipython", "xterm -e ipython", "/usr/share/pixmaps/ipython.png" },
 	{"nitrogen", "nitrogen", "/usr/share/icons/hicolor/16x16/apps/nitrogen.png" },
 	{"pentablet", "/usr/lib/pentablet/pentablet.sh", "///usr/share/icons/pentablet.png" },
-	{"picom", "picom"},
 }
 
 local xdg_menu = {

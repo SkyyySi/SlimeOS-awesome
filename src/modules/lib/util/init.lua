@@ -98,7 +98,64 @@ function util.lua_escape(s)
 		:gsub("%?", "%%?")
 end
 
+function util.get_stack_level()
+	local depth = 0
+	while true do
+		if not debug.getinfo(3 + depth) then
+			break
+		end
+
+		depth = depth + 1
+	end
+
+	return depth - 4
+end
+
+---@param stack_level? integer How many calls eval should "travel up" to read local values, defaults to `util.get_stack_level()`
+---@return table variables
+function util.get_locals(stack_level)
+	stack_level = stack_level or util.get_stack_level() or 2
+	local variables = {} ---@type table
+	local idx = 1 ---@type integer
+
+	while true do
+		local ln, lv = debug.getlocal(stack_level, idx)
+		if ln == nil then break end
+
+		variables[ln] = lv
+		idx = 1 + idx
+	end
+
+	return variables
+end
+
+---@param stack_level? integer How many calls eval should "travel up" to read local values, defaults to `util.get_stack_level()`
+---@return table variables
+function util.get_upvalues(stack_level)
+	stack_level = stack_level or util.get_stack_level() or 2
+	local variables = {} ---@type table
+	local idx = 1 ---@type integer
+	local func = debug.getinfo(stack_level, "f").func ---@type function
+
+	while true do
+		local ln, lv = debug.getupvalue(func, idx)
+		if ln == nil then break end
+
+		variables[ln] = lv
+		idx = 1 + idx
+	end
+
+	return variables
+end
+
 -- Evaluates a string and returns its output.
+---
+--- **Please note**: This function has to temporarily make values global.
+--- While it tries its best to revert those as quickly as possible,
+--- this may create a [race condition](https://en.wikipedia.org/wiki/Race_condition) with asynchronous code.
+--- Unfortunately, the only way to avoid that is to not evaluate
+--- expressions that contain values that may also be used by
+--- asynchronous code. With vanilla lua, there is no way around that.
 ---
 --- Usage:
 --- ```
@@ -107,9 +164,25 @@ end
 --- --> 25
 --- ```
 ---@param s string
+---@param stack_level? integer How many calls eval should "travel up" to read local values, defaults to `util.get_stack_level()`
 ---@return any
-function util.eval(s)
-	return load("return " .. s)()
+function util.eval(s, stack_level)
+	stack_level = stack_level or util.get_stack_level() or 2
+	local vars = util.get_locals(stack_level)
+	local previous_values = {} ---@type table<string, any>
+
+	for i,v in pairs(vars) do
+		previous_values[i] = _G[i]
+		_G[i] = v
+	end
+
+	local out = load("return " .. s)()
+
+	for i,v in pairs(previous_values) do
+		_G[i] = v
+	end
+
+	return out
 end
 
 -- Format a string using a nicer syntax than `string.format`.
@@ -131,8 +204,11 @@ end
 --- util.strfmt [[The resoult of a * b is {a * b}]]
 --- ```
 ---@param s string
+---@param stack_level? integer How many calls eval should "travel up" to read local values, defaults to `util.get_stack_level()`
 ---@return string
-function util.strfmt(s)
+function util.strfmt(s, stack_level)
+	stack_level = stack_level or util.get_stack_level() or 2
+
 	for i in s:gmatch("{([%g%s]+)}") do
 		i = tostring(i) ---@type string
 		local v = "" ---@type string
@@ -140,9 +216,10 @@ function util.strfmt(s)
 		-- A shorthand for writing util.strfmt [[x = {x}]],
 		-- just write util.strfmt [[{x = }]]
 		if i:find("[%s\t\n]*=[%s\t\n]*$") then
-			v = i .. tostring(util.eval(i:gsub("[%s\t\n]*=[%s\t\n]*$", "")))
+			local ii = i:gsub("[%s\t\n]*=[%s\t\n]*$", "")
+			v = i .. tostring(util.eval(ii, stack_level))
 		else
-			v = tostring(util.eval(i))
+			v = tostring(util.eval(i, stack_level))
 		end
 
 		i = util.lua_escape(i)
