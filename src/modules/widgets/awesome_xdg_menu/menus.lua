@@ -61,6 +61,7 @@ menu_parts["Entwicklung"] = {
 	{"GdaBrowser", "gda-browser-5.0", "/usr/share/pixmaps/gda-browser-5.0.png" },
 	{"Glade", "glade "},
 	{"Globaler Plasma-Designexplorer", "lookandfeelexplorer"},
+	{"Greenfoot", "greenfoot ", "/usr/share/icons/hicolor/256x256/apps/greenfoot.png" },
 	{"Icon Browser", "yad-icon-browser", "/usr/share/icons/hicolor/16x16/apps/yad.png" },
 	{"IntelliJ IDEA Community Edition", "/usr/bin/idea ", "/usr/share/pixmaps/idea.png" },
 	{"Micro", "xterm -e micro "},

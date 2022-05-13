@@ -71,23 +71,25 @@ end
 local clients_pids_with_pulse_sink_input_id = {} ---@type table<integer, integer>
 local pulse_sink_input_id_with_clients_pids = {} ---@type table<integer, integer>
 local function get_clients_pids_with_pulse_sink_input_id()
-	clients_pids_with_pulse_sink_input_id = {}
 	local command = [[pacmd list-sink-inputs | tr '\n' '\r' | perl -pe 's/.*? *index: ([0-9]+).+?application\.process\.id = "([^\r]+)"\r.+?(?=index:|$)/\2:\1\r/g' | tr '\r' '\n']]
 
 	awful.spawn.easy_async_with_shell(command, function(stdout)
+		clients_pids_with_pulse_sink_input_id = {}
 		for _,line in pairs(util.split(stdout, "\n")) do
 			local pid, id = unpack(util.split(line, ":")) ---@type string
-			local pid_n = tonumber(pid)
-			local id_n = tonumber(id)
-			clients_pids_with_pulse_sink_input_id[pid_n] = id_n
-			pulse_sink_input_id_with_clients_pids[id_n] = pid_n
-			awesome.emit_signal("pulseaudio::client_is_sink_input", pid_n, id_n)
+			local pid_n = tonumber(pid) --or 1
+			local id_n = tonumber(id) --or 1
+			if pid_n and id_n then
+				clients_pids_with_pulse_sink_input_id[pid_n] = id_n
+				pulse_sink_input_id_with_clients_pids[id_n] = pid_n
+				awesome.emit_signal("pulseaudio::client_is_sink_input", pid_n, id_n)
+			end
 		end
 	end)
 end
 
 gears.timer {
-	timeout   = 0.5,
+	timeout   = 1.5,
 	call_now  = true,
 	autostart = true,
 	callback  = function()

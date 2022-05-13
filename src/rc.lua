@@ -9,7 +9,7 @@ error_handling {}
 -- Standard awesome libraries
 local gears              = require("gears")
 local awful              = require("awful")
-local wibox              = require("wibox") ---@type wibox -- Widget and layout library
+local wibox              = require("wibox") ---@type wibox Widget and layout library
 local beautiful          = require("beautiful") -- Theme handling library
 local naughty            = require("naughty") -- Notification library
 local ruled              = require("ruled") -- Declarative object management
@@ -17,9 +17,17 @@ local menubar            = require("menubar")
 local hotkeys_popup      = require("awful.hotkeys_popup")
 local hotkeys_popup_keys = require("awful.hotkeys_popup.keys") -- Hotkeys help widget for VIM and other apps when client with a matching name is opened
 
-function notify(text)
+--- Print a message using naughty.notification
+---
+--- Please only use this for debugging.
+---@param text string The text that should be printed
+---@param timeout? number The number of seconds to wait before auto closing the notification (default: `5`; `0` means no timeout)
+function notify(text, timeout)
+	timeout = timeout or 5
+
 	naughty.notification {
-		message = tostring(text)
+		message = tostring(text),
+		timeout = timeout,
 	}
 end
 
@@ -39,6 +47,7 @@ kill_all_but_one {
 }
 
 local buttonify = require("modules.lib.buttonify")
+local async = require("modules.lib.async")
 
 -- {{{ Variable definitions
 -- Themes define colors, icons, font and wallpapers.
@@ -58,6 +67,8 @@ beautiful.init(theme_dir.."/theme.lua")
 
 local bling = require("modules.external.bling") -- needs to be loaded after running beautiful.init
 bling.module.flash_focus.enable()
+
+local media_info = require("modules.widgets.media_info")
 
 -- }}}
 
@@ -204,6 +215,39 @@ screen.connect_signal("request::desktop_decoration", function(s)
 	-- Each screen has its own tag table.
 	awful.tag({ " 一 ", " 二 ", " 三 ", " 四 ", " 五 ", " 六 ", " 七 ", " 八 ", " 九 ", " 十 " }, s, awful.layout.layouts[1])
 
+	s.boxes = {} --- Wiboxes, desktop widgets, etc.
+
+	s.boxes.desktop_clock = wibox {
+		x       = 10,
+		y       = 10,
+		width   = 200,
+		height  = 100,
+		visible = true,
+		ontop   = true,
+		type    = "desktop",
+		bg      = gears.color.transparent,
+	}
+
+	s.boxes.desktop_clock.widget = {
+		{
+			font    = "Source Sans Pro, Bold "..tostring(math.floor(util.scale(24))),
+			align   = "left",
+			valign  = "top",
+			format  = [[%T]],
+			refresh = 1,
+			widget  = wibox.widget.textclock,
+		},
+		{
+			font    = "Source Sans Pro, "..tostring(math.floor(util.scale(16))),
+			align   = "left",
+			valign  = "top",
+			format  = [[%F]],
+			refresh = 1,
+			widget  = wibox.widget.textclock,
+		},
+		layout = wibox.layout.fixed.vertical,
+	}
+
 	s.widgets = {}
 
 	-- Create a promptbox for each screen
@@ -320,9 +364,6 @@ screen.connect_signal("request::desktop_decoration", function(s)
 	-- Keyboard map indicator and switcher
 	s.widgets.keyboardlayout = awful.widget.keyboardlayout()
 
-	-- Create a textclock widget
-	s.widgets.textclock = wibox.widget.textclock()
-
 	screen.connect_signal("request::wallpaper", function(s)
 		-- Wallpaper
 		if beautiful.wallpaper then
@@ -381,75 +422,32 @@ screen.connect_signal("request::desktop_decoration", function(s)
 
 	s.widgets.layoutbox = awful.widget.layoutbox()
 
-	s.boxes = {}
-	s.boxes.info = wibox {
-		width   = util.scale(300),
-		height  = util.scale(500),
-		screen  = s,
-		visible = true,
-		ontop   = false,
-		type    = "normal",
-		bg      = gears.color.transparent,
-		shape   = function(cr,w,h) gears.shape.rounded_rect(cr,w,h, util.scale(8) + 1) end,
+	-- Create a textclock widget
+	s.widgets.textclock = wibox.widget {
+		wibox.widget.textclock(),
+		widget = wibox.container.background,
 	}
 
-	awful.placement.right(s.boxes.info, { margins = { right = util.scale(10) } })
-
-	local xmlreader = require("xmlreader")
-	-- based on [this StackOverflow answer](https://stackoverflow.com/a/40635620/15759700).
-	---@param xml string
-	local function parse_xml(xml)
-		local outstr = ""
-		local r = assert(xmlreader.from_string(xml))
-
-		while r:read() do
-			local leadingws = ("    "):rep(r:depth())
-
-			if r:node_type() == "element" then
-				io.write(("%s%s:"):format(leadingws, r:name()))
-
-				while r:move_to_next_attribute() do
-					io.write((" %s=%q"):format(r:name(), r:value()))
-				end
-
-				io.write("\n")
-			end
-		end
-	end
+	buttonify { s.widgets.textclock }
 
 	s.widgets.month_calendar = awful.widget.calendar_popup.month {
 		style_header = {
 			shape = function(cr,w,h) gears.shape.rounded_rect(cr,w,h, util.scale(8)) end,
 			markup = function(text)
-				return util.strfmt([[<i> {text} </i>]])
-				--return string.format([[<i> %s </i>]], text)
+				return util.sstrfmt([[<i> ${text} </i>]], {text = text})
 			end,
 			border_width = util.scale(1),
 			border_color = beautiful.accent_primary_bright,
 			bg_color = beautiful.accent_primary_medium,
 		},
 	}
-	--s.widgets.month_calendar:attach(s.widgets.textclock, "br")
+
 	s.widgets.textclock:connect_signal("button::release", function()
 		s.widgets.month_calendar:toggle()
 		awful.placement.bottom_right(s.widgets.month_calendar, {
 			honor_workarea = true,
 		})
 	end)
-
-	s.boxes.info.widget = wibox.widget {
-		{
-			markup = [[
-<b>Hello, world!</b>
-]],
-			widget = wibox.widget.textbox,
-		},
-		bg                 = beautiful.accent_dark,
-		shape              = function(cr,w,h) gears.shape.rounded_rect(cr,w,h, util.scale(8)) end,
-		shape_border_color = beautiful.accent_bright,
-		shape_border_width = util.scale(2),
-		widget             = wibox.widget.background,
-	}
 
 	-- Create the wibar
 	s.panels = {}
@@ -474,6 +472,7 @@ screen.connect_signal("request::desktop_decoration", function(s)
 			layout = wibox.layout.fixed.horizontal,
 		},
 		{
+			media_info {},
 			s.widgets.keyboardlayout,
 			wibox.widget.systray(),
 			s.widgets.textclock,

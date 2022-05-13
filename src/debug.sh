@@ -9,6 +9,8 @@ sleep 1 # Just making sure that Xephyr has been started up fully.
 
 export DISPLAY="$_DISPLAY"
 
+source "$CONFIG_DIR/prelauch.sh"
+
 if command -v vglclient 2> /dev/null; then
 	vglclient -detach
 	exec vglrun awesome --config "$CONFIG_DIR/rc.lua"

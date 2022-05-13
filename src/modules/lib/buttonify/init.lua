@@ -1,22 +1,22 @@
 #!/usr/bin/env lua
-local naughty   = require("naughty")
 local beautiful = require("beautiful")
+local util      = require("modules.lib.util")
 
 --[[ A small helper module that adds hover and click effects
 to a widget, to make it "feel" more like a button. --]]
 local function main(args)
 	args = {
-		widget                  = args.widget,
-		mouse_effects           = not (not args.mouse_effects) or false,
-		button_color_hover      = args.button_color_hover      or beautiful.button_enter,
-		button_color_normal     = args.button_color_normal     or beautiful.button_normal,
-		button_color_press      = args.button_color_press      or beautiful.button_press,
-		button_color_release    = args.button_color_release    or beautiful.button_release,
+		widget                  = util.default(args.widget, args[1]), --- Allow to just write `buttonify { <your widget here> }`
+		mouse_effects           = util.default(args.mouse_effects, true),
+		button_color_hover      = util.default(args.button_color_hover,   beautiful.button_enter,   beautiful.accent_primary_darker),
+		button_color_normal     = util.default(args.button_color_normal,  beautiful.button_normal,  beautiful.accent_primary_dark),
+		button_color_press      = util.default(args.button_color_press,   beautiful.button_press,   beautiful.accent_primary_medium),
+		button_color_release    = util.default(args.button_color_release, beautiful.button_release, beautiful.accent_primary_darker),
 		-- Callbacks are functions that will be executed whenever the corresponding action is performed.
-		button_callback_hover   = args.button_callback_hover   or nil,
-		button_callback_normal  = args.button_callback_normal  or nil,
-		button_callback_press   = args.button_callback_press   or nil,
-		button_callback_release = args.button_callback_release or nil,
+		button_callback_hover   = util.default(args.button_callback_hover,   nil),
+		button_callback_normal  = util.default(args.button_callback_normal,  nil),
+		button_callback_press   = util.default(args.button_callback_press,   nil),
+		button_callback_release = util.default(args.button_callback_release, nil),
 	}
 
 	args.widget:set_bg(args.button_color_normal)
