@@ -199,7 +199,7 @@ t.awesome_icon = theme_assets.awesome_icon(
 
 -- Define the icon theme for application icons. If not set then the icons
 -- from /usr/share/icons and /usr/share/icons/hicolor will be used.
-t.icon_theme = nil
+t.icon_theme = "Papirus-Dark-nordic-blue-folders"
 
 -- Set different colors for urgent notifications.
 rnotification.connect_signal('request::rules', function()

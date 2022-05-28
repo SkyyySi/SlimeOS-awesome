@@ -1,4 +1,3 @@
-#!/usr/bin/env lua
 ---@class wibox.widget
 ---@field background wibox.widget.background
 ---@field base wibox.widget.base

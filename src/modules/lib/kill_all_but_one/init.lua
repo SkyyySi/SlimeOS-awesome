@@ -1,4 +1,3 @@
-#!/usr/bin/env lua
 local awful = require("awful")
 
 local function main(args)

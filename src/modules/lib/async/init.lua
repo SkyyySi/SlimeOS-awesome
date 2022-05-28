@@ -1,4 +1,3 @@
-#!/usr/bin/env lua
 local awful = require("awful")
 local generics = require("modules.lib.generics")
 local util = require("modules.lib.util")

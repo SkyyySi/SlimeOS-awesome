@@ -1,4 +1,3 @@
-#!/usr/bin/env lua
 --local gears   = require("gears")
 --local awful   = require("awful")
 --local wibox   = require("wibox")

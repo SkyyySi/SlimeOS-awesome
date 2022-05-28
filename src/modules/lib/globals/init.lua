@@ -1,4 +1,3 @@
-#!/usr/bin/env lua
 local gears = require("gears")
 
 -- Yes, this is a local variable. Deal with it :P

@@ -7,3 +7,6 @@
 [submodule "src/modules/external/nice"]
 	path = src/modules/external/nice
 	url = https://github.com/SkyyySi/awesome-wm-nice-skyyysi
+[submodule "src/modules/external/awesome-freedesktop"]
+	path = src/modules/external/awesome-freedesktop
+	url = https://github.com/lcpz/awesome-freedesktop

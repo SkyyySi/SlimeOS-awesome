@@ -1,4 +1,3 @@
-#!/usr/bin/env lua
 local beautiful = require("beautiful")
 local util      = require("modules.lib.util")
 

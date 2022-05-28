@@ -1,4 +1,3 @@
-#!/usr/bin/env lua
 ---@class wibox
 ---@field border_width integer Border width.
 ---@field border_color string Border color.

@@ -1,4 +1,3 @@
-#!/usr/bin/env lua
 ---@class wibox.layout.align
 local cls = {}
 

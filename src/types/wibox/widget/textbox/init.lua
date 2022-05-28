@@ -1,4 +1,3 @@
-#!/usr/bin/env lua
 ---@class wibox.widget.textbox : wibox.widget.base
 ---@field markup string Set the HTML text of the textbox.
 ---@field text string Set a textbox plain text.

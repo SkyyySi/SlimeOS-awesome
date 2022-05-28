@@ -13,7 +13,17 @@ source "$CONFIG_DIR/prelauch.sh"
 
 if command -v vglclient 2> /dev/null; then
 	vglclient -detach
-	exec vglrun awesome --config "$CONFIG_DIR/rc.lua"
+	vglrun awesome --config "$CONFIG_DIR/rc.lua"&
+else
+	awesome --config "$CONFIG_DIR/rc.lua"&
 fi
 
-exec awesome --config "$CONFIG_DIR/rc.lua"
+# Allow commands to be typed in the VScode debug terminal.
+
+printf '\nDebugging awesome using Xephyr.\nType `exit` to stop debuggin.\n\n'
+
+while true; do
+	printf '> '
+	read -r next_command
+	awesome-client "$next_command"
+done

@@ -1,4 +1,3 @@
-#!/usr/bin/env lua
 local gears      = require("gears")
 local awful      = require("awful")
 local wibox      = require("wibox")
@@ -346,6 +345,61 @@ function util.try(fn, ...)
 	end
 
 	return retval
+end
+
+--- Create a simple anonymous function with a Ruby-like syntax
+---
+--- Usage:
+---
+--- ```
+--- local lambda = require("lambda")
+--- f = lambda[[|x, y| x + y + 2]]
+--- f(3, 6)
+--- --> 11
+--- ```
+---@param expr string The lambda expression to evaluate
+---@return function The created function
+function util.lambda(expr)
+    local args, body = expr:match([[^|([^|]*)|(.*)]]) ---@type string, string
+    return load("return function("..args..") return "..body.."; end")() ---@type function
+end
+
+--- Create a new array by running a function for
+--- each item in an existing array. Similar to
+--- JavaScript's <array>.map() method.
+---
+--- Usage:
+---
+--- ```
+--- local x = { 4, 7, 23, 2, 67 }
+--- local y = util.map_array(x, function(item) return item * 2 end)
+--- -- y = { 8, 14, 46, 4, 134 }
+--- ```
+---
+--- - You can also add this function as a method to an array,
+--- which might be more readable in some cases, in particualr
+--- when returning the array to be used somewhere else:
+---
+--- ```
+--- local mt = { map = util.map_array }
+--- mt.__index = mt
+---
+--- local x = setmetatable({}, mt)
+---
+--- local y = x:map(function(item) return item * 2 end)
+--- -- y = { 8, 14, 46, 4, 134 }
+--- ```
+---@param array any[]
+---@param fn fun(item: any)
+---@return any[] new_array
+function util.map_array(array, fn)
+	local new_array = {}
+
+	for i, v in pairs(array) do
+		new_array[i] = fn(v)
+	end
+
+	return new_array
 end
 
 return util

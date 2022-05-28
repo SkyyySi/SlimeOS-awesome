@@ -1,4 +1,3 @@
-#!/usr/bin/env lua
 ---@class wibox.container.background
 ---@field widget wibox.widget The widget displayed in the background widget.
 ---@field bg color The background color/pattern/gradient to use.

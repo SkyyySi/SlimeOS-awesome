@@ -1,4 +1,3 @@
-#!/usr/bin/env lua
 ---@class wibox.layout
 ---@field align wibox.layout.align
 ---@field constraint wibox.layout.constraint

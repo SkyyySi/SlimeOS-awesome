@@ -1,4 +1,3 @@
-#!/usr/bin/env lua
 pcall(require, "luarocks.loader") -- Enable LuaRocks package manager support
 
 -- Error handling. Should be loaded as soon as possible to be able
@@ -53,6 +52,9 @@ local async = require("modules.lib.async")
 -- Themes define colors, icons, font and wallpapers.
 local globals = require("modules.lib.globals")
 
+util.add_package_path(globals.config_dir .. "modules")
+util.add_package_path(globals.config_dir .. "modules/external")
+
 local autostart = require("modules.lib.autostart")
 --[ [
 autostart {
@@ -77,10 +79,11 @@ local awesome_xdg_menu = require("modules.widgets.awesome_xdg_menu")
 local menus = awesome_xdg_menu {}
 
 local main_menu
-
 awesome.connect_signal("slimeos::menu_is_ready", function(menu)
 	main_menu = menu.main
 end)
+
+local freedesktop = require("modules.external.awesome-freedesktop")
 
 --main_menu = awesome_menu()
 --main_menu = awful.menu({ "restart", awesome.restart })
@@ -217,6 +220,7 @@ screen.connect_signal("request::desktop_decoration", function(s)
 
 	s.boxes = {} --- Wiboxes, desktop widgets, etc.
 
+	--[[
 	s.boxes.desktop_clock = wibox {
 		x       = 10,
 		y       = 10,
@@ -233,7 +237,7 @@ screen.connect_signal("request::desktop_decoration", function(s)
 			font    = "Source Sans Pro, Bold "..tostring(math.floor(util.scale(24))),
 			align   = "left",
 			valign  = "top",
-			format  = [[%T]],
+			format  = "%T",
 			refresh = 1,
 			widget  = wibox.widget.textclock,
 		},
@@ -241,12 +245,13 @@ screen.connect_signal("request::desktop_decoration", function(s)
 			font    = "Source Sans Pro, "..tostring(math.floor(util.scale(16))),
 			align   = "left",
 			valign  = "top",
-			format  = [[%F]],
+			format  = "%F",
 			refresh = 1,
 			widget  = wibox.widget.textclock,
 		},
 		layout = wibox.layout.fixed.vertical,
 	}
+	--]]
 
 	s.widgets = {}
 
@@ -362,7 +367,10 @@ screen.connect_signal("request::desktop_decoration", function(s)
 	}
 
 	-- Keyboard map indicator and switcher
-	s.widgets.keyboardlayout = awful.widget.keyboardlayout()
+	--s.widgets.keyboardlayout = awful.widget.keyboardlayout()
+	s.widgets.keyboardlayout = require("modules.widgets.keyboard_layout_switcher") {
+		
+	}
 
 	screen.connect_signal("request::wallpaper", function(s)
 		-- Wallpaper
@@ -546,6 +554,43 @@ screen.connect_signal("request::desktop_decoration", function(s)
 		layout = wibox.layout.align.vertical,
 	}
 	--]]
+
+	-- Add desktop icons
+	freedesktop.desktop.add_icons {
+		screen     = s, ---@type screen Screen where to show icons
+		dir        = util.default(os.getenv("XDG_DESKTOP_DIR"), "~/Desktop"), ---@type string Directory to lookup
+		showlabels = true, ---@type boolean Define whether to show labels or not
+		open_with  = "xdg_open", ---@type string Define file manager to use
+		baseicons = {
+			{
+				label   = "This PC",
+				icon    = "computer",
+				onclick = "computer://"
+			},
+			{
+				label   = "Home",
+				icon    = "user-home",
+				onclick = os.getenv("HOME")
+			},
+			{
+				label   = "Trash",
+				icon    = "user-trash",
+				onclick = "trash://"
+			}
+		},
+		iconsize = {
+			width  = 48,
+			height = 48,
+		},
+		labelsize = {
+			width  = 140,
+			height = 20,
+		},
+		margin = {
+			x = 20,
+			y = 20,
+		},
+	}
 end)
 -- }}}
 

@@ -1,4 +1,3 @@
-#!/usr/bin/env lua
 ---@class wibox.container
 ---@field arcchart wibox.container.arcchart
 ---@field background wibox.container.background
