@@ -165,6 +165,7 @@ function util.lua_escape(s)
 		:gsub("%?", "%%?")
 end
 
+---@return number depth The current Lua execution stack level
 function util.get_stack_level()
 	local depth = 0
 	while true do
