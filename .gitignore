@@ -1,3 +1,5 @@
 local/
 .mypy_cache/
 .idea/
+src/env.sh
+.idea

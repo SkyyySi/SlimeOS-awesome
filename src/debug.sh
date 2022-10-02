@@ -9,7 +9,9 @@ sleep 1 # Just making sure that Xephyr has been started up fully.
 
 export DISPLAY="$_DISPLAY"
 
-source "$CONFIG_DIR/prelauch.sh"
+if [[ -e "$CONFIG_DIR/prelauch.sh" ]]; then
+	source "$CONFIG_DIR/prelauch.sh"
+fi
 
 if command -v vglclient 2> /dev/null; then
 	vglclient -detach
@@ -19,7 +21,6 @@ else
 fi
 
 # Allow commands to be typed in the VScode debug terminal.
-
 printf '\nDebugging awesome using Xephyr.\nType `exit` to stop debuggin.\n\n'
 
 while true; do

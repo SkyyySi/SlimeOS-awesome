@@ -12,17 +12,121 @@ local generics = {}
 --- Arrays can only hold number indecies and will throw an error if
 --- an attempt is made to add any other index type.
 ---@class Array
+---@field insert fun(item: any, index?: number)
+---@field for_each fun(fn: fun(value: any))
 generics.Array = { mt = {} }
+generics.Array.__index = generics.Array
 
-function generics.Array.mt:__call(arr)
-	local function throw_error_if_key_is_not_a_number(k, v)
-		local type_of_key = type(k) ---@type string
+local function throw_error_if_key_is_not_a_number(k, v)
+	local type_of_key = type(k) ---@type string
 
-		if type_of_key ~= "number" then
-			error("Arrays can only have numerical indecies, but the type of '" .. tostring(v) .. "' is '" .. type_of_key .. "'.")
+	if type_of_key ~= "number" then
+		error(string.format("Arrays can only have numerical indecies, but the type of '%s' is '%s'.", v, type_of_key))
+	end
+end
+
+--- Prevent the user from using the array like an associative
+--- array / dictionary / table by only allowing number-based indecies.
+---@returns self
+function generics.Array:__newindex(k, v)
+	throw_error_if_key_is_not_a_number(k, v)
+
+	self[k] = v
+	return self
+end
+
+--- Iterator function for use in `for`-loops.
+---
+--- Usage:
+---
+--- ```
+--- my_array = generics.Array("foo", "bar")
+---
+--- for i in my_array() do
+--- 	-- ...
+--- end
+--- ```
+function generics.Array:__call()
+	local i = 0 ---@type number
+	local n = #self
+	return function()
+		i = i + 1
+		if i <= n then return self[i] end
+	end
+end
+
+--- Custom, nicer-to-read `tostring()` implementation.
+function generics.Array:__tostring()
+	local out = "Array { " ---@type string
+
+	local is_first = true
+	for i,v in pairs(self) do
+		if is_first then
+			out = out .. util.sstrfmt([[${v}, ]], {v = v})
+			is_first = false
+		else
+			out = out .. util.sstrfmt([[${v} ]], {v = v})
 		end
 	end
 
+	return out .. "}"
+end
+
+--- Inserts an item at a specific index or at the end
+--- if no index was specified.
+---@param item any
+---@param index? number
+function generics.Array:insert(item, index)
+	if index ~= nil then
+		table.insert(self, item)
+		return self
+	end
+
+	self[index] = item
+	return self
+end
+
+---@param fn fun(value: any)
+function generics.Array:for_each(fn)
+	for i in self() do
+		fn(i)
+	end
+
+	return self
+end
+
+---@param fn fun(value: any)
+function generics.Array:map(fn)
+	local new_array = generics.Array() ---@type Array
+
+	for i in self() do
+		new_array.insert(fn(i))
+	end
+
+	return new_array
+end
+
+--- Construct a new array from a parameter list.
+---@vararg ... A list of items to construct a new array from.
+function generics.Array:new(...)
+	local items = {...}
+	return setmetatable(items, self)
+end
+
+generics.Array.mt.__call = generics.Array.new
+
+--- Construct a new array from a table.
+---@param items any[] A list of items to construct a new array from.
+function generics.Array:from_table(items)
+	return setmetatable(items, self)
+end
+
+setmetatable(generics.Array, generics.Array.mt)
+
+
+
+---@param arr any[]
+function generics.Array.mt:__call(arr)
 	for k,v in pairs(arr) do
 		throw_error_if_key_is_not_a_number(k, v)
 	end

@@ -3,6 +3,7 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/licenses/readable-licenses" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/src/modules/external/awesome-freedesktop" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/src/modules/external/bling" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/src/modules/external/nice" vcs="Git" />
   </component>

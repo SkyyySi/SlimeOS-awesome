@@ -1,9 +1,10 @@
-local awful     = require("awful")
-local wibox     = require("wibox") ---@type wibox
-local gears     = require("gears")
-local beautiful = require("beautiful")
-local buttonify = require("modules.lib.buttonify")
-local util      = require("modules.lib.util")
+local awful           = require("awful")
+local wibox           = require("wibox") ---@type wibox
+local gears           = require("gears")
+local beautiful       = require("beautiful")
+local buttonify       = require("modules.lib.buttonify")
+local util            = require("modules.lib.util")
+local absolute_center = require("modules.lib.absolute_center")
 
 local function make_button(widget, args)
 	args = {
@@ -52,13 +53,14 @@ local function get_average_volume_of_sink_input(sink_id)
 					:gsub("%]", "")
 					:gsub("%%", "")
 
-				local vols = util.split(line, ",") ---@type string[]|integer[]
+				local vols = util.split(line, ",") ---@type string[]
+				local vols_n = {} ---@type number[]
 
 				for i,v in pairs(vols) do
-					vols[i] = tonumber(v)
+					vols_n[i] = tonumber(v) or 0
 				end
 
-				local vol = math.floor(util.average(vols))
+				local vol = math.floor(util.average(vols_n))
 				client_volumes[sink_id] = vol
 				awesome.emit_signal("pulseaudio::volume_of_sink_input", sink_id, vol)
 
@@ -121,10 +123,10 @@ local function volume_slider(args)
 	local slider = wibox.widget {
 		bar_shape           = gears.shape.rounded_bar,
 		bar_height          = 4,
-		bar_color           = beautiful.border_color,
-		handle_color        = beautiful.bg_normal,
+		bar_color           = beautiful.titlebar_fg_normal,
+		handle_color        = beautiful.titlebar_bg_normal,
 		handle_shape        = gears.shape.circle,
-		handle_border_color = beautiful.border_color,
+		handle_border_color = beautiful.titlebar_fg_normal,
 		handle_border_width = 1,
 		minimum             = 0,
 		maximum             = 100,
@@ -150,9 +152,13 @@ local function volume_slider(args)
 	end)
 
 	awesome.connect_signal("pulseaudio::volume_of_sink_input", function(sink_id_sig, vol)
+		if not type(vol) == "number" then
+			return
+		end
+
 		if pulse_sink_input_id_with_clients_pids[sink_id_sig] == pid then
 			sink_id = sink_id_sig
-			slider:set_value(vol)
+			slider.value = vol
 		end
 	end)
 
@@ -166,95 +172,146 @@ local function volume_slider(args)
 end
 
 local function main(args)
+	args = util.default(args, {})
+	args = {
+		border_radius = util.default(args.border_radius, beautiful.border_radius, 0)
+	}
+
 	client.connect_signal("request::titlebars", function(c)
+		if c.requests_no_titlebar then return end
+
+		local menu = {
+			{ "Close", function() c:kill() end },
+			{ "Maximize", function() c.maximized = not c.maximized end },
+			{ "Minimize", function() c.minimized = not c.minimized end },
+			{ "Sticky", function() c.sticky = not c.sticky end },
+			{ "Float / tile", function() c.floating = not c.floating end },
+			{ "Keep above", function() c.below = false; c.above = not c.above end },
+			{ "Keep below", function() c.above = false; c.below = not c.below end },
+		}
+
+		c.title_bar_menu = awful.menu {
+			items = menu
+		}
+
 		-- buttons for the titlebar
 		local buttons = {
-			awful.button({ }, 1, function()
+			awful.button({}, 1, function()
 				c:activate { context = "titlebar", action = "mouse_move"  }
 			end),
-			awful.button({ }, 3, function()
+			awful.button({}, 2, function()
+				c.title_bar_menu:toggle()
+			end),
+			awful.button({}, 3, function()
 				c:activate { context = "titlebar", action = "mouse_resize"}
 			end),
 		}
 
-		local titlebars = {}
+		c.titlebars = {}
+		c.shape = function(cr, w, h)
+			gears.shape.rounded_rect(cr, w, h, args.border_radius)
+		end
+
+		local bg = "#1E1F29"
+		if c.class == "firefox" and c.type == "normal" then
+			bg = "#1E1F29B0"
+		end
 
 		get_clients_pids_with_pulse_sink_input_id()
 
-		titlebars.top = awful.titlebar(c, {
+		c.titlebars.top = awful.titlebar(c, {
 			position = "top",
-			height   = 16,
+			font     = util.default(beautiful.titlebar_font, "Roboto, Semibold "..beautiful.font_size),
+			size     = util.scale(32),
 			bg       = gears.color.transparent,
+			shape = function(cr, w, h)
+				gears.shape.rounded_rect(cr, w, h, util.scale(20))
+			end,
 		})
-		titlebars.top.widget = {
+		c.titlebars.top.widget = {
 			{
 				{
 					{
 						{
-							{
-								awful.titlebar.widget.iconwidget(c),
-								--make_button(awful.titlebar.widget.floatingbutton(c)),
-								--make_button(awful.titlebar.widget.stickybutton(c)),
-								--make_button(awful.titlebar.widget.ontopbutton(c)),
-								make_button(awful.titlebar.widget.floatingbutton(c), {
-									normal = "#00000000",
-									hover  = "#2060C0",
-									press  = "#3090FF",
-								}),
-								make_button(awful.titlebar.widget.stickybutton(c), {
-									normal = "#00000000",
-									hover  = "#2060C0",
-									press  = "#3090FF",
-								}),
-								make_button(awful.titlebar.widget.ontopbutton(c), {
-									normal = "#00000000",
-									hover  = "#2060C0",
-									press  = "#3090FF",
-								}),
-								volume_slider {
-									client = c,
+							widget = absolute_center(
+								wibox.widget {
+									{
+										awful.titlebar.widget.iconwidget(c),
+										--make_button(awful.titlebar.widget.floatingbutton(c)),
+										--make_button(awful.titlebar.widget.stickybutton(c)),
+										--make_button(awful.titlebar.widget.ontopbutton(c)),
+										make_button(awful.titlebar.widget.floatingbutton(c), {
+											normal = "#00000000",
+											hover  = "#2060C0",
+											press  = "#3090FF",
+										}),
+										make_button(awful.titlebar.widget.stickybutton(c), {
+											normal = "#00000000",
+											hover  = "#2060C0",
+											press  = "#3090FF",
+										}),
+										make_button(awful.titlebar.widget.ontopbutton(c), {
+											normal = "#00000000",
+											hover  = "#2060C0",
+											press  = "#3090FF",
+										}),
+										volume_slider {
+											client = c,
+										},
+										layout = wibox.layout.fixed.horizontal,
+									},
+									margins = 2,
+									widget = wibox.container.margin,
 								},
-								layout = wibox.layout.fixed.horizontal,
-							},
-							margins = 2,
-							widget = wibox.container.margin,
+								wibox.widget {
+									{
+										align  = "center",
+										widget = awful.titlebar.widget.titlewidget(c),
+									},
+									buttons = buttons,
+									layout  = wibox.layout.flex.horizontal,
+								},
+								wibox.widget {
+									{
+										--awful.titlebar.widget.minimizebutton(c),
+										--awful.titlebar.widget.maximizedbutton(c),
+										--awful.titlebar.widget.closebutton(c),
+										make_button(awful.titlebar.widget.minimizebutton(c), {
+											normal = "#00000000",
+											hover  = "#2060C0",
+											press  = "#3090FF",
+										}),
+										make_button(awful.titlebar.widget.maximizedbutton(c), {
+											normal = "#00000000",
+											hover  = "#2060C0",
+											press  = "#3090FF",
+										}),
+										make_button(awful.titlebar.widget.closebutton(c), {
+											normal = "#C01000",
+											hover  = "#D83010",
+											press  = "#F02010",
+										}),
+										layout = wibox.layout.fixed.horizontal(),
+									},
+									margins = 2,
+									widget  = wibox.container.margin,
+								},
+								buttons
+							)
+							--layout = wibox.layout.align.horizontal
 						},
-						{
-							{
-								align  = "center",
-								widget = awful.titlebar.widget.titlewidget(c),
+						bg = gears.color {
+							type  = "linear",
+							from  = { 0, 0 },
+							to    = { 0, util.default(c.titlebars.top.size, c.titlebars.top.height, util.scale(16)) },
+							stops = {
+								{ 0, "#FFFFFF18" },
+								{ 0.2, "#FFFFFF00" },
 							},
-							buttons = buttons,
-							layout  = wibox.layout.flex.horizontal,
 						},
-						{
-							{
-								--awful.titlebar.widget.minimizebutton(c),
-								--awful.titlebar.widget.maximizedbutton(c),
-								--awful.titlebar.widget.closebutton(c),
-								make_button(awful.titlebar.widget.minimizebutton(c), {
-									normal = "#00000000",
-									hover  = "#2060C0",
-									press  = "#3090FF",
-								}),
-								make_button(awful.titlebar.widget.maximizedbutton(c), {
-									normal = "#00000000",
-									hover  = "#2060C0",
-									press  = "#3090FF",
-								}),
-								make_button(awful.titlebar.widget.closebutton(c), {
-									normal = "#C01000",
-									hover  = "#D83010",
-									press  = "#F02010",
-								}),
-								layout = wibox.layout.fixed.horizontal(),
-							},
-							margins = 2,
-							widget  = wibox.container.margin,
-						},
-						layout = wibox.layout.align.horizontal
+						widget = wibox.container.background,
 					},
-					bg     = beautiful.accent_bright,
+					bg = bg,--util.default(beautiful.titlebar_bg_normal, beautiful.accent_bright, bg),
 					widget = wibox.container.background,
 				},
 				top    = 1,
@@ -262,7 +319,7 @@ local function main(args)
 				right  = 1,
 				widget = wibox.container.margin,
 			},
-			bg     = beautiful.accent_dark,
+			bg = bg,--util.default(beautiful.titlebar_bg, beautiful.accent_dark, "#DBE1EC"),
 			widget = wibox.container.background,
 		}
 
@@ -278,15 +335,16 @@ local function main(args)
 		--	}
 		--end)
 
-		titlebars.bottom = awful.titlebar(c, {
+		--notify(beautiful.titlebar_width)
+		c.titlebars.bottom = awful.titlebar(c, {
 			position = "bottom",
 			size     = 2,
 			bg       = gears.color.transparent,
 		})
-		titlebars.bottom.widget = wibox.widget {
+		c.titlebars.bottom.widget = wibox.widget {
 			{
 				{
-					bg     = beautiful.accent_bright,
+					bg     = bg,--util.default(beautiful.titlebar_bg_normal, beautiful.accent_bright, bg),
 					widget = wibox.container.background,
 				},
 				bottom = 1,
@@ -294,43 +352,43 @@ local function main(args)
 				right  = 1,
 				widget = wibox.container.margin,
 			},
-			bg     = beautiful.accent_dark,
+			bg     = bg,--util.default(beautiful.titlebar_bg, beautiful.accent_dark, "#DBE1EC"),
 			widget = wibox.container.background,
 		}
 
-		titlebars.left = awful.titlebar(c, {
+		c.titlebars.left = awful.titlebar(c, {
 			position = "left",
 			size     = 2,
 			bg       = gears.color.transparent,
 		})
-		titlebars.left.widget = wibox.widget {
+		c.titlebars.left.widget = wibox.widget {
 			{
 				{
-					bg     = beautiful.accent_bright,
+					bg     = bg,--util.default(beautiful.titlebar_bg_normal, beautiful.accent_bright, bg),
 					widget = wibox.container.background,
 				},
 				left   = 1,
 				widget = wibox.container.margin,
 			},
-			bg     = beautiful.accent_dark,
+			bg     = bg,--util.default(beautiful.titlebar_bg, beautiful.accent_dark, "#DBE1EC"),
 			widget = wibox.container.background,
 		}
 
-		titlebars.right = awful.titlebar(c, {
+		c.titlebars.right = awful.titlebar(c, {
 			position = "right",
 			size     = 2,
 			bg       = gears.color.transparent,
 		})
-		titlebars.right.widget = wibox.widget {
+		c.titlebars.right.widget = wibox.widget {
 			{
 				{
-					bg     = beautiful.accent_bright,
+					bg     = bg,--util.default(beautiful.titlebar_bg_normal, beautiful.accent_bright, bg),
 					widget = wibox.container.background,
 				},
 				right  = 1,
 				widget = wibox.container.margin,
 			},
-			bg     = beautiful.accent_dark,
+			bg     = bg,--util.default(beautiful.titlebar_bg, beautiful.accent_dark, "#DBE1EC"),
 			widget = wibox.container.background,
 		}
 	end)

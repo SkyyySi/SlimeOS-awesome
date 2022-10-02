@@ -34,7 +34,7 @@ local function main(args)
 	args.color_press     = util.default(args.color_press, beautiful.button_press)
 	args.color_release   = util.default(args.color_release, beautiful.button_release)
 
-	awful.spawn { "setxkbmap", args.enabled_layouts[1] }
+	--awful.spawn { "setxkbmap", args.enabled_layouts[1] }
 
 	local layouts_popup = awful.menu(util.map_array(args.enabled_layouts, function(layout)
 		return { layout }

@@ -2,21 +2,23 @@ local gears         = require("gears")
 local awful         = require("awful")
 local beautiful     = require("beautiful")
 local hotkeys_popup = require("awful.hotkeys_popup")
+local util          = require("modules.lib.util")
 local globals       = require("modules.lib.globals")
 local naughty       = require("naughty")
+local menubar       = require("menubar")
 
 -- Create an empty menu to make awesome not error out while waiting
 -- for it to be populated via a callback function.
 -- Create a launcher widget and a main menu
 local awesome_menu = {
-	main     = awful.menu { -- populate it with awesome's default menu
+	main = awful.menu { -- populate it with awesome's default menu
 		items = {
 			{ "awesome", {
-				{ "hotkeys", function() hotkeys_popup.show_help(nil, awful.screen.focused()) end },
-				{ "manual", globals.terminal .. " -e man awesome" },
-				{ "edit config", globals.editor .. " " .. awesome.conffile },
-				{ "restart", awesome.restart },
-				{ "quit", function() awesome.quit() end },
+				{ "hotkeys",     function() hotkeys_popup.show_help(nil, awful.screen.focused()) end },
+				{ "manual",      globals.terminal.." -e man awesome" },
+				{ "edit config", globals.editor.." "..awesome.conffile },
+				{ "restart",     awesome.restart },
+				{ "quit",        function() awesome.quit() end },
 			}, beautiful.awesome_icon },
 			{ "open terminal", globals.terminal },
 		}
@@ -26,6 +28,12 @@ local awesome_menu = {
 }
 
 local function main(args)
+	if _SLIMEOS_MENU_GENERATION_ALREADY_STARTED then
+		return
+	end
+
+	_SLIMEOS_MENU_GENERATION_ALREADY_STARTED = true
+
 	args = {}
 
 	local script = [[
@@ -59,7 +67,7 @@ local function main(args)
 			return output_table
 		end
 
-		local menu_parts = require("modules.external.archmenu")
+		local menu_parts = dofile(util.get_script_path().."menus.lua")
 		local xdg_menu = {}
 
 		xdg_menu = sort_table_by_key(menu_parts)
@@ -75,11 +83,12 @@ local function main(args)
 
 		-- Entries related to power management
 		local menu_power = {
-			{ "Lock session", "xdg-screensaver lock" }, -- loginctl lock-session
-			{ "Shutdown",     "sudo poweroff"         },
-			{ "Reboot",       "sudo reboot"           },
-			{ "Suspend",      "systemctl suspend"     },
-			{ "Hibernate",    "systemctl hibernate"   },
+			{ "Lock session", "xdg-screensaver lock", menubar.utils.lookup_icon("system-lock-screen") }, -- loginctl lock-session
+			{ "Shutdown",     "sudo poweroff",        menubar.utils.lookup_icon("system-shutdown") },
+			{ "Reboot",       "sudo reboot",          menubar.utils.lookup_icon("system-reboot") },
+			{ "Suspend",      "systemctl suspend",    menubar.utils.lookup_icon("system-suspend") },
+			{ "Hibernate",    "systemctl hibernate",  menubar.utils.lookup_icon("system-hibernate") },
+			{ "Log out",      function() awesome.exit() end, menubar.utils.lookup_icon("system-log-out") },
 		}
 
 		local menu_template = {

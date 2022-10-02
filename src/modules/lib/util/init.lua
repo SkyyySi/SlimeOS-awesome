@@ -6,10 +6,13 @@ local naughty    = require("naughty")
 local globals    = require("modules.lib.globals")
 local xresources = require("beautiful.xresources")
 
+-- Faster lookup
+local next = next
+
 local util = {}
 
 --- Returns the current Lua version as a number
----@return number version
+---@return number? version
 function util.get_lua_version()
 	return tonumber(_VERSION:match([[[0-9.]+$]]))
 end
@@ -27,10 +30,11 @@ function util.tobool(x)
 end
 
 --- Returns `value` it it is not nil, otherwise returns `default`.
----@vararg any
----@return any
+---@generic T1
+---@vararg T1
+---@return T1
 function util.default(...)
-	for i,v in pairs {...} do
+	for _, v in pairs {...} do
 		if v ~= nil then
 			return v
 		end
@@ -85,6 +89,21 @@ function util.get_script_path()
 	return debug.getinfo(2, "S").source:sub(2):match("(.*/)")
 end
 
+--- Loop over each character of a string in a for-loop.
+---@param inputstr string
+---@return fun(): string
+function util.iterstring(inputstr)
+	local iterator = 0
+	local strlen = #inputstr
+
+	return function()
+		if iterator >= strlen then return end
+
+		iterator = iterator + 1
+		return inputstr:sub(iterator, iterator)
+	end
+end
+
 --- Split a string into a string array, optionally with a delimiter.
 --- If no delimiter is provided, the string will be split on
 --- spaces, tabs and newlines.
@@ -94,12 +113,21 @@ end
 ---@param delimiter? string
 ---@return string[]
 function util.split(inputstr, delimiter)
+	inputstr  = util.default(inputstr, "")
 	delimiter = util.default(delimiter, "%s")
 
-	local t = {}
+	if not inputstr:match(delimiter) then
+		return {inputstr}
+	end
 
-	for s in string.gmatch(inputstr, "([^" .. delimiter .. "]+)") do
-		table.insert(t, s)
+	local t = {""} ---@type string[]
+
+	for s in util.iterstring(inputstr) do
+		if s == delimiter then
+			table.insert(t, "")
+		else
+			t[#t] = t[#t]..s
+		end
 	end
 
 	return t
@@ -149,7 +177,7 @@ end
 
 --- Escapes a string for lua's pattern matching.
 ---@param s string
----@return string
+---@return string, integer
 function util.lua_escape(s)
 	return s:gsub("%%", "%%%%")
 		:gsub("^%^", "%%^")
@@ -163,6 +191,22 @@ function util.lua_escape(s)
 		:gsub("%+", "%%+")
 		:gsub("%-", "%%-")
 		:gsub("%?", "%%?")
+end
+
+--- Replace escape sequences with their litteral representation.
+---@param s string
+---@return string, integer
+function util.string_escape(s)
+	return s:gsub("\a", [[\a]])
+		:gsub("\b", [[\b]])
+		:gsub("\f", [[\f]])
+		:gsub("\n", [[\n]])
+		:gsub("\r", [[\r]])
+		:gsub("\t", [[\t]])
+		:gsub("\v", [[\v]])
+		:gsub("\\", [[\\]])
+		:gsub("\"", [[\"]])
+		:gsub("\'", [[\']])
 end
 
 ---@return number depth The current Lua execution stack level
@@ -401,6 +445,225 @@ function util.map_array(array, fn)
 	end
 
 	return new_array
+end
+
+
+---@param path string The directory path to list the contents of
+---@param callback fun(item: string)
+---@return string[] contents Array of files and directories located in `path` (populated asynchronously!!!)
+function util.ls(path, callback)
+	if not path:match("^/") then
+		error(("ERROR: Your provided path '%s' is not absolute!\nIt needs to start with '/' (forward slash character)."):format(path))
+	end
+
+	if not path:match("/$") then
+		path = path .. "/"
+	end
+
+	local out = {} ---@type string[]
+
+	awful.spawn.easy_async({ "find", "/home/simon/Schreibtisch/", "-maxdepth", "1", "-print0" }, function(stdout, stderr, reason, exit_code)
+		stdout = stdout:gsub("\n", "")
+		--notify(stdout)
+		for k, v in ipairs(util.split(stdout, "\0")) do
+			table.insert(out, v)
+			callback(v)
+		end
+	end)
+
+	return out
+end
+
+--- Check if a file exists in this path; returns `false` when
+--- passed a directory instead of a file path
+---@param path string
+---@return boolean exists
+function util.file_exists(path)
+	local f=io.open(path, "r")
+
+	if f ~= nil then
+		io.close(f)
+		return true
+	end
+
+	return false
+end
+
+--- Check if a file or directory exists in this path
+---@param path string
+---@return boolean exists, string?
+function util.fsobj_exists(path)
+	local ok, err, code = os.rename(path, path)
+
+	if not ok and code == 13 then
+		-- Permission denied, but it exists
+		return true
+	end
+
+	return ok, err
+end
+
+---@param t table
+---@return boolean is_empty True if `t` is empty, otherwise false
+function util.table_is_empty(t)
+	return next(t) == nil
+end
+
+---@param str string The string you want to save into the file
+---@param path string The full file path
+---@return string? err The error message if something went wrong
+function util.dump_to_file(str, path)
+	local file,err = io.open(path, "w")
+
+	if file then
+		file:write(str)
+		file:close()
+	elseif err then
+		-- Note: I'm aware that `error()` exists, but I find that kind of error handling to be ugly
+		print("ERROR: Could not save file: "..err)
+	else
+		print("ERROR: Could not save file: "..err)
+	end
+
+	return err
+end
+
+--- Pause execution for a set amount of time.
+---
+--- WARNING: DO NOT USE THIS FOR ANYTHING BUT TESTING!
+--- This is not asynchronous. This means that running this
+--- function will cause lag!
+---
+---@param time number
+function util.sleep(time)
+	local f = io.popen("sleep "..tostring(time), "r")
+	if f == nil then return end
+	local out = f:read("*a")
+	f:close()
+end
+
+---@param str string
+---@param n number
+---@return string
+function util.string_multiply(str, n)
+	if n <= 0 then
+		return ""
+	end
+
+	local outs = ""
+	local floor = math.floor(n)
+	local point = n - floor
+
+	for i = 1, n do
+		outs = outs..str
+	end
+
+	if point > 0 then
+		local len = #str * floor
+		outs = outs..str:sub(1, math.floor(len))
+	end
+
+	return outs
+end
+
+---@param t table
+---@param indent? string
+---@param depth? integer
+---@return string
+function util.table_to_string(t, indent, depth)
+	indent = indent or "    "
+	depth = depth or 0
+	local bracket_indent = util.string_multiply(indent, depth)
+	local full_indent = bracket_indent..indent
+
+	if next(t) == nil then
+		if depth > 0 then
+			return "{},"
+		else
+			return "{}"
+		end
+	end
+
+	local outs = "{\n"
+
+	for k, v in pairs(t) do
+		local tv = type(v)
+		local tk = type(k)
+
+		if tk == "string" then
+			k = '"'..util.string_escape(k)..'"'
+		elseif tk == "function" or tk == "thread" or tk == "userdata" then
+			k = "[["..tostring(k).."]]"
+		end
+
+		if tv == "table" then
+			outs = ("%s%s[%s] = %s"):format(outs, full_indent, k, util.table_to_string(v, indent, depth + 1).."\n")
+		else
+			if tv == "string" then
+				v = '"'..util.string_escape(v)..'"'
+			elseif tv == "function" or tv == "thread" or tv == "userdata" then
+				v = "[["..tostring(v).."]]"
+			end
+
+			outs = ("%s%s[%s] = %s,\n"):format(outs, full_indent, k, v)
+		end
+	end
+
+	if depth > 0 then
+		return outs..bracket_indent.."},"
+	else
+		return outs..bracket_indent.."}"
+	end
+end
+
+function util.table_to_string_simple(t)
+	local outs
+	local first = true
+
+	for k, v in pairs(t) do
+		if type(k) == "string" then
+			k = '"'..util.string_escape(k)..'"'
+		end
+		if type(v) == "string" then
+			v = '"'..util.string_escape(v)..'"'
+		end
+
+		if first then
+			first = false
+			outs = ("{ [%s] = %s"):format(k, v)
+		else
+			outs = (", [%s] = %s"):format(k, v)
+		end
+	end
+
+	return outs.."}"
+end
+
+--- Filter out strings in a table that match a specfific pattern
+--- and return 2 new tables, the first only containing them,
+--- the other only containing non-matching strings.
+--- Keys *will* be preserved.
+---@param strings table<any, string> The array of strings to search through
+---@return table<any, string> does_match, table<any, string> does_not_match
+function util.filter_by_pattern(strings, pattern)
+	local does_match, does_not_match = {}, {}
+	local mt = getmetatable(strings) or {
+		__tostring = util.table_to_string_simple
+	}
+	mt.__index = mt
+	setmetatable(does_match, mt)
+	setmetatable(does_not_match, mt)
+
+	for k, v in pairs(strings) do
+		print("> "..v, v:match(pattern))
+		if v:match(pattern) then
+			does_match[k] = v
+		else
+			does_not_match[k] = v
+		end
+	end
+
+	return does_match, does_not_match
 end
 
 return util

@@ -1,4 +1,5 @@
 local awful              = require("awful")
+local naughty            = require("naughty")
 local menubar            = require("menubar")
 local globals            = require("modules.lib.globals")
 local hotkeys_popup      = require("awful.hotkeys_popup")
@@ -8,7 +9,14 @@ local hotkeys_popup_keys = require("awful.hotkeys_popup.keys")
 local awesome_xdg_menu = require("modules.widgets.awesome_xdg_menu")
 local menus = awesome_xdg_menu {}
 
-local main_menu
+local main_menu = {
+	toggle = function(self)
+		naughty.notification {
+			title   = "Main menu",
+			message = "The menu has not been generated yet, please wait"
+		}
+	end,
+}
 
 awesome.connect_signal("slimeos::menu_is_ready", function(menu)
 	main_menu = menu.main
@@ -218,10 +226,10 @@ client.connect_signal("request::default_keybindings", function()
 			{description = "toggle fullscreen", group = "client"}),
 		awful.key({ globals.modkey, "Shift"   }, "c",      function (c) c:kill()                         end,
 				{description = "close", group = "client"}),
-		awful.key({ globals.modkey, "Control" }, "space",  awful.client.floating.toggle                     ,
-				{description = "toggle floating", group = "client"}),
-		awful.key({ globals.modkey, "Control" }, "Return", function (c) c:swap(awful.client.getmaster()) end,
+		awful.key({ globals.modkey, "Control" }, "space", function (c) c:swap(awful.client.getmaster()) end,
 				{description = "move to master", group = "client"}),
+		awful.key({ globals.modkey, "Shift"   }, "f",  awful.client.floating.toggle                     ,
+				{description = "toggle floating", group = "client"}),
 		awful.key({ globals.modkey,           }, "o",      function (c) c:move_to_screen()               end,
 				{description = "move to screen", group = "client"}),
 		awful.key({ globals.modkey,           }, "t",      function (c) c.ontop = not c.ontop            end,

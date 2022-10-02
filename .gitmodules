@@ -10,3 +10,6 @@
 [submodule "src/modules/external/awesome-freedesktop"]
 	path = src/modules/external/awesome-freedesktop
 	url = https://github.com/lcpz/awesome-freedesktop
+[submodule "src/modules/external/lua-async-await"]
+	path = src/modules/external/lua-async-await
+	url = https://github.com/ms-jpq/lua-async-await

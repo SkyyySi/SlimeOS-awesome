@@ -6,15 +6,13 @@ local error_handling = require("modules.lib.error_handling")
 error_handling {}
 
 -- Standard awesome libraries
-local gears              = require("gears")
-local awful              = require("awful")
-local wibox              = require("wibox") ---@type wibox Widget and layout library
-local beautiful          = require("beautiful") -- Theme handling library
-local naughty            = require("naughty") -- Notification library
-local ruled              = require("ruled") -- Declarative object management
-local menubar            = require("menubar")
-local hotkeys_popup      = require("awful.hotkeys_popup")
-local hotkeys_popup_keys = require("awful.hotkeys_popup.keys") -- Hotkeys help widget for VIM and other apps when client with a matching name is opened
+local gears     = require("gears")
+local awful     = require("awful")
+local wibox     = require("wibox") ---@type wibox Widget and layout library
+local beautiful = require("beautiful") -- Theme handling library
+local naughty   = require("naughty") -- Notification library
+local ruled     = require("ruled") -- Declarative object management
+local menubar   = require("menubar")
 
 --- Print a message using naughty.notification
 ---
@@ -27,6 +25,17 @@ function notify(text, timeout)
 	naughty.notification {
 		message = tostring(text),
 		timeout = timeout,
+	}
+end
+
+--- Print a formatted message using naughty.notification and string.format.
+---
+--- Please only use this for debugging.
+---@vararg string The format string and text that should be printed
+function notifyf(...)
+	naughty.notification {
+		message = string.format(...),
+		timeout = 5,
 	}
 end
 
@@ -46,7 +55,8 @@ kill_all_but_one {
 }
 
 local buttonify = require("modules.lib.buttonify")
-local async = require("modules.lib.async")
+local desktop_icons = require("modules.widgets.desktop_icons")
+--local async = require("modules.lib.async")
 
 -- {{{ Variable definitions
 -- Themes define colors, icons, font and wallpapers.
@@ -55,13 +65,27 @@ local globals = require("modules.lib.globals")
 util.add_package_path(globals.config_dir .. "modules")
 util.add_package_path(globals.config_dir .. "modules/external")
 
-local autostart = require("modules.lib.autostart")
---[ [
-autostart {
-	apps = {
-		{ "picom", "--config", globals.config_dir.."/config/picom/picom.conf" },
-	}
-}
+--local autostart = require("modules.lib.autostart")
+----[ [
+--autostart {
+--	apps = {
+--		{ "picom", "--experimental-backends", "--config", globals.config_dir.."/config/picom/picom.conf" },
+--	}
+--}
+
+local username = os.getenv("USER")
+local spawn_once_cmd = ([[pgrep -fU '%s' -- ']]):format(username) .. "%s'"
+local function spawn_once(cmd)
+	awful.spawn.easy_async_with_shell(spawn_once_cmd:format(cmd[1]), function(stdout, stderr, reason, exit_code)
+		if exit_code > 0 then
+			awful.spawn(cmd)
+		end
+	end)
+end
+
+spawn_once { "picom",--[[ "--experimental-backends",]] "--config", globals.config_dir.."/config/picom/picom.conf" }
+spawn_once { "pasystray" }
+spawn_once { "kdeconnect-indicator" }
 --]]
 
 local theme_dir = gears.filesystem.get_configuration_dir().."themes/"..globals.theme
@@ -70,20 +94,35 @@ beautiful.init(theme_dir.."/theme.lua")
 local bling = require("modules.external.bling") -- needs to be loaded after running beautiful.init
 bling.module.flash_focus.enable()
 
-local media_info = require("modules.widgets.media_info")
+local playerctl_cli = require("modules.lib.playerctl_cli")
+playerctl_cli()
 
+local pulseaudio = require("modules.lib.pulseaudio")
+pulseaudio()
+
+local media_info = require("modules.widgets.media_info")
+--local desktop_search = require("modules.widgets.desktop_search")
+local better_menu = require("modules.widgets.better_menu")
+local global_menu_bar = require("modules.widgets.global_menu_bar")
+local dock = require("modules.widgets.dock")
+local category_launcher = require("modules.widgets.category_launcher")
 -- }}}
 
 -- {{{ Menu
 local awesome_xdg_menu = require("modules.widgets.awesome_xdg_menu")
-local menus = awesome_xdg_menu {}
+local menus = awesome_xdg_menu()
 
 local main_menu
+local all_menus = {}
 awesome.connect_signal("slimeos::menu_is_ready", function(menu)
 	main_menu = menu.main
+
+	for k, v in pairs(menu) do
+		all_menus[k] = v
+	end
 end)
 
-local freedesktop = require("modules.external.awesome-freedesktop")
+--local freedesktop = require("modules.external.awesome-freedesktop")
 
 --main_menu = awesome_menu()
 --main_menu = awful.menu({ "restart", awesome.restart })
@@ -97,6 +136,8 @@ tag.connect_signal("request::default_layouts", function()
 	awful.layout.append_default_layouts({
 		awful.layout.suit.spiral,
 		awful.layout.suit.floating,
+		awful.layout.suit.tile,
+		awful.layout.suit.fair,
 
 --		awful.layout.suit.floating,
 --		awful.layout.suit.tile,
@@ -153,43 +194,7 @@ local function right_click_menu_field()
 end
 
 -- {{{ Wibar
-local function absolute_center_wibar(left, center, right)
-	-- TODO: Add an empty widget with a click handler to the ends of the left and right,
-	-- in order to add a right click functionality similarly to the one from the Windows taskbar.
-	return wibox.widget {
-		{ -- Left widgets
-			{
-				left,
-				--right_click_menu_field(),
-				layout = wibox.layout.fixed.horizontal,
-			},
-			nil,
-			nil,
-			expand = "outside",
-			layout = wibox.layout.align.horizontal,
-		},
-		{ -- Middle widget
-			nil,
-			{
-				center,
-				layout = wibox.layout.fixed.horizontal,
-			},
-			nil,
-			layout = wibox.layout.align.horizontal,
-		},
-		{ -- Right widgets
-			nil,
-			nil,
-			{
-				right,
-				layout = wibox.layout.fixed.horizontal,
-			},
-			layout = wibox.layout.align.horizontal,
-		},
-		expand = "outside",
-		layout = wibox.layout.align.horizontal,
-	}
-end
+local absolute_center = require("modules.lib.absolute_center")
 
 local function popup_menu_pro(args)
 	args = args or {
@@ -215,27 +220,55 @@ local function popup_menu_pro(args)
 end
 
 screen.connect_signal("request::desktop_decoration", function(s)
+	-- Disables the wibar on the primary screen
+	--if s == screen.primary then return end
+
 	-- Each screen has its own tag table.
 	awful.tag({ " 一 ", " 二 ", " 三 ", " 四 ", " 五 ", " 六 ", " 七 ", " 八 ", " 九 ", " 十 " }, s, awful.layout.layouts[1])
 
-	s.boxes = {} --- Wiboxes, desktop widgets, etc.
+	-- Wiboxes, desktop widgets, etc.
+	s.boxes = {}
 
-	--[[
+	-- Create the wibar
+	s.panels = {}
+
+	s.panels.primary = awful.wibar {
+		type     = "dock",
+		position = "bottom",
+		height   = util.scale(38),
+		screen   = s,
+		bg       = gears.color.transparent,
+	}
+
+	local corner_radius = s.panels.primary.height / 2
+	local panel_shape
+	if s.panels.primary.position == "top" then
+		panel_shape = function(cr,w,h) gears.shape.partially_rounded_rect(cr,w,h, false, false, true, true, corner_radius) end
+	elseif s.panels.primary.position == "bottom" then
+		panel_shape = function(cr,w,h) gears.shape.partially_rounded_rect(cr,w,h, true, true, false, false, corner_radius) end
+	elseif s.panels.primary.position == "left" then
+		panel_shape = function(cr,w,h) gears.shape.partially_rounded_rect(cr,w,h, false, true, true, false, corner_radius) end
+	elseif s.panels.primary.position == "right" then
+		panel_shape = function(cr,w,h) gears.shape.partially_rounded_rect(cr,w,h, true, false, false, true, corner_radius) end
+	end
+	s.panels.primary.shape = panel_shape
+
+	--[ [
 	s.boxes.desktop_clock = wibox {
-		x       = 10,
-		y       = 10,
 		width   = 200,
 		height  = 100,
 		visible = true,
-		ontop   = true,
+		below   = true,
 		type    = "desktop",
 		bg      = gears.color.transparent,
 	}
 
+	awful.placement.top(s.boxes.desktop_clock, { margins = { top = util.scale(300) } })
+
 	s.boxes.desktop_clock.widget = {
 		{
 			font    = "Source Sans Pro, Bold "..tostring(math.floor(util.scale(24))),
-			align   = "left",
+			align   = "center",
 			valign  = "top",
 			format  = "%T",
 			refresh = 1,
@@ -243,7 +276,7 @@ screen.connect_signal("request::desktop_decoration", function(s)
 		},
 		{
 			font    = "Source Sans Pro, "..tostring(math.floor(util.scale(16))),
-			align   = "left",
+			align   = "center",
 			valign  = "top",
 			format  = "%F",
 			refresh = 1,
@@ -258,38 +291,129 @@ screen.connect_signal("request::desktop_decoration", function(s)
 	-- Create a promptbox for each screen
 	s.widgets.promptbox = awful.widget.prompt()
 
+	-- Attatch a layoutlist to the layoutbox
+	s.boxes.layoutlist = awful.popup {
+		widget = awful.widget.layoutlist {
+			screen      = s,
+			base_layout = wibox.layout.flex.vertical
+		},
+		maximum_height = #awful.layout.layouts * util.scale(24),
+		minimum_height = #awful.layout.layouts * util.scale(24),
+		screen         = s,
+		ontop          = true,
+		visible        = false,
+	}
+
+	awful.placement.bottom_right(s.boxes.layoutlist, { honor_workarea = true, margins = util.scale(5) })
+
 	-- Create an imagebox widget which will contain an icon indicating which layout we're using.
 	-- We need one layoutbox per screen.
-	s.mylayoutbox = awful.widget.layoutbox {
-		screen  = s,
-		buttons = {
-			awful.button({ }, 1, function () awful.layout.inc( 1) end),
-			awful.button({ }, 3, function () awful.layout.inc(-1) end),
-			awful.button({ }, 4, function () awful.layout.inc(-1) end),
-			awful.button({ }, 5, function () awful.layout.inc( 1) end),
-		}
+	s.widgets.layoutbox = wibox.widget {
+		{
+			awful.widget.layoutbox.new {
+				screen = s
+			},
+			top    = util.scale(4),
+			bottom = util.scale(4),
+			left   = util.scale(8),
+			right  = util.scale(8),
+			widget = wibox.container.margin,
+		},
+		widget = wibox.container.background,
+	}
+
+	buttonify {
+		s.widgets.layoutbox,
+		button_callback_release = function(w, b)
+			if b == 1 then
+				awful.layout.inc(1)
+			elseif b == 3 then
+				local vis = s.boxes.layoutlist.visible ---@type boolean
+				s.boxes.layoutlist.visible = not vis
+				awful.placement.bottom_right(s.boxes.layoutlist, { honor_workarea = true, margins = util.scale(5) })
+			elseif b == 4 then
+				awful.layout.inc(1)
+			elseif b == 5 then
+				awful.layout.inc(-1)
+			end
+		end,
 	}
 
 	-- Create a taglist widget
-	s.widgets.taglist = awful.widget.taglist {
-		screen  = s,
-		filter  = awful.widget.taglist.filter.all,
-		buttons = {
-			awful.button({ }, 1, function(t) t:view_only() end),
-			awful.button({ globals.modkey }, 1, function(t)
-				if client.focus then
-					client.focus:move_to_tag(t)
-				end
-			end),
-			awful.button({ }, 3, awful.tag.viewtoggle),
-			awful.button({ globals.modkey }, 3, function(t)
-				if client.focus then
-					client.focus:toggle_tag(t)
-				end
-			end),
-			awful.button({ }, 4, function(t) awful.tag.viewprev(t.screen) end),
-			awful.button({ }, 5, function(t) awful.tag.viewnext(t.screen) end),
-		}
+	local taglist_old_cursor, taglist_old_wibox
+	s.widgets.taglist = wibox.widget {
+		{
+			awful.widget.taglist {
+				screen  = s,
+				filter  = awful.widget.taglist.filter.all,
+				buttons = {
+					awful.button({ }, 1, function(t) t:view_only() end),
+					awful.button({ globals.modkey }, 1, function(t)
+						if client.focus then
+							client.focus:move_to_tag(t)
+						end
+					end),
+					awful.button({ }, 3, awful.tag.viewtoggle),
+					awful.button({ globals.modkey }, 3, function(t)
+						if client.focus then
+							client.focus:toggle_tag(t)
+						end
+					end),
+					awful.button({ }, 4, function(t) awful.tag.viewprev(t.screen) end),
+					awful.button({ }, 5, function(t) awful.tag.viewnext(t.screen) end),
+				},
+				widget_template = {
+					{
+						{
+							id     = "index_role",
+							widget = wibox.widget.textbox,
+						},
+						{
+							id     = "icon_role",
+							widget = wibox.widget.imagebox,
+						},
+						{
+							id     = "text_role",
+							widget = wibox.widget.textbox,
+						},
+						layout = wibox.layout.fixed.horizontal,
+					},
+					id = "background_role",
+					create_callback = function(self, c3, index, objects)
+						self:connect_signal("mouse::enter", function()
+							if self.bg ~= beautiful.button_hover then
+								self.backup     = self.bg
+								self.has_backup = true
+							end
+
+							self.bg = beautiful.button_hover
+
+							local wb = util.default(mouse.current_wibox, {})
+							taglist_old_cursor, taglist_old_wibox = wb.cursor, wb
+							wb.cursor = "hand1"
+						end)
+						self:connect_signal("mouse::leave", function()
+							if self.has_backup then
+								self.bg = self.backup
+							end
+
+							if taglist_old_wibox then
+								taglist_old_wibox.cursor = taglist_old_cursor
+								taglist_old_wibox = nil
+							end
+						end)
+					end,
+					widget = wibox.container.background,
+				},
+			},
+			bg                 = "#FFFFFF10",
+			shape              = function(cr, w, h) gears.shape.rounded_bar(cr, w, h) end,
+			shape_border_color = "#FFFFFF20",
+			shape_border_width = util.scale(1),
+			widget             = wibox.container.background,
+		},
+		margins = util.scale(2),
+		widget  = wibox.container.margin,
 	}
 
 	-- Create a tasklist widget
@@ -303,85 +427,95 @@ screen.connect_signal("request::desktop_decoration", function(s)
 			awful.button({ }, 3, function() awful.menu.client_list { theme = { width = 250 } } end),
 			awful.button({ }, 4, function() awful.client.focus.byidx(-1) end),
 			awful.button({ }, 5, function() awful.client.focus.byidx( 1) end),
-		}
-	}
-
-	s.widgets.tasklist = awful.widget.tasklist {
-		screen   = s,
-		filter   = awful.widget.tasklist.filter.currenttags,
-		buttons  = {
-			awful.button({ }, 1, function (c)
-				c:activate { context = "tasklist", action = "toggle_minimization" }
-			end),
-			awful.button({ }, 3, function() awful.menu.client_list { theme = { width = 250 } } end),
-			awful.button({ }, 4, function() awful.client.focus.byidx(-1) end),
-			awful.button({ }, 5, function() awful.client.focus.byidx( 1) end),
 		},
-		layout   = {
+		layout = {
+			spacing = util.scale(4),
 			spacing_widget = {
-				{
-					forced_width  = 5,
-					forced_height = 24,
-					thickness     = 1,
-					color         = '#777777',
-					widget        = wibox.widget.separator
-				},
-				valign = 'center',
-				halign = 'center',
+				valign = "center",
+				halign = "center",
 				widget = wibox.container.place,
 			},
-			spacing = 1,
-			layout  = wibox.layout.fixed.horizontal
+			layout  = wibox.layout.flex.horizontal,
 		},
-		-- Notice that there is *NO* wibox.wibox prefix, it is a template,
-		-- not a widget instance.
 		widget_template = {
 			{
-				wibox.widget.base.make_widget(),
-				forced_height = 5,
-				id            = 'background_role',
-				widget        = wibox.container.background,
-			},
-			{
 				{
-					id     = 'clienticon',
-					widget = awful.widget.clienticon,
+					{
+						bg                 = "#F8F8F2",
+						shape              = gears.shape.circle,
+						shape_border_width = util.scale(1),
+						shape_border_color = "#00000000",
+						widget             = wibox.container.background,
+					},
+					{
+						id         = "icon_role",
+						clip_shape = gears.shape.circle,
+						widget     = wibox.widget.imagebox,
+					},
+					layout = wibox.layout.stack,
 				},
-				margins = 5,
-				widget  = wibox.container.margin
+				margins = util.scale(4),
+				widget  = wibox.container.margin,
 			},
-			nil,
-			create_callback = function(self, c, index, objects) --luacheck: no unused args
-				self:get_children_by_id('clienticon')[1].client = c
-
-				-- BLING: Toggle the popup on hover and disable it off hover
-				self:connect_signal('mouse::enter', function()
-					awesome.emit_signal("bling::task_preview::visibility", s, true, c)
-				end)
-				self:connect_signal('mouse::leave', function()
-					awesome.emit_signal("bling::task_preview::visibility", s, false, c)
-				end)
-			end,
-			layout = wibox.layout.align.vertical,
+			bg = {
+				type  = "radial",
+				from  = { util.scale(19), util.scale(21), util.scale(12) },
+				to    = { util.scale(19), util.scale(21), util.scale(16) },
+				stops = { { 0, "#000000A0" }, { 1/3, "#00000070" }, { 2/3, "#00000030" }, { 1, "#0000" } }
+			  },
+			widget = wibox.container.background,
 		},
 	}
 
 	-- Keyboard map indicator and switcher
 	--s.widgets.keyboardlayout = awful.widget.keyboardlayout()
 	s.widgets.keyboardlayout = require("modules.widgets.keyboard_layout_switcher") {
-		
+		--
 	}
 
 	screen.connect_signal("request::wallpaper", function(s)
+		--[[
 		-- Wallpaper
 		if beautiful.wallpaper then
-			local wallpaper = beautiful.wallpaper
+			local wp = beautiful.wallpaper
+
 			-- If wallpaper is a function, call it with the screen
-			if type(wallpaper) == "function" then
-				wallpaper = wallpaper(s)
+			if type(wp) == "function" then
+				return wp(s)
 			end
-			gears.wallpaper.maximized(wallpaper, s, true)
+
+			--gears.wallpaper.maximized(wp, s, true)
+
+			local margin = util.scale(150)
+
+			awful.wallpaper {
+				screen = s,
+				widget = {
+					{
+						{
+							image      = wp,
+							resize     = true,
+							halign     = "center",
+							valign     = "center",
+							clip_shape = function(cr, w, h) gears.shape.rounded_rect(cr, w, h, util.scale(60)) end,
+							opacity    = 0.55,
+							widget     = wibox.widget.imagebox,
+						},
+						margins = margin,
+						widget  = wibox.container.margin,
+					},
+					bg = gears.color {
+						type  = "linear",
+						from  = { 0, 0 },
+						to    = { 0, s.geometry.height },
+						stops = { { 0, "#666DCC" }, { 1, "#66A0CC" } },
+					},
+					widget = wibox.container.background,
+				}
+			}
 		end
+		--]]
+		awful.spawn { "nitrogen", "--restore" }
 	end)
 
 	--[[
@@ -391,34 +525,121 @@ screen.connect_signal("request::desktop_decoration", function(s)
 	}
 	--]]
 
+	local arc = wibox.widget.base.make_widget()
+
+	arc.brightness = 0.1
+	function arc:set_brightness(brightness)
+		self.brightness = brightness
+		self:emit_signal("widget::redraw_needed")
+	end
+
+	function arc:fade_to(new_brightness)
+		if self.brightness == new_brightness then
+			return
+		end
+
+		local step = 0.01
+		local update
+		if new_brightness <= self.brightness then
+			update = function()
+				if new_brightness < self.brightness then
+					self:set_brightness(self.brightness - step)
+					return true
+				end
+
+				return false
+			end
+		else
+			update = function()
+				if new_brightness > self.brightness then
+					self:set_brightness(self.brightness + step)
+					return true
+				end
+
+				return false
+			end
+		end
+
+		gears.timer.start_new(0.01, function()
+			return update()
+		end)
+	end
+
+	local function dec2hex(n) return string.format("%x", n * 255) end
+	arc.draw = function(widget, context, cr, width, height)
+		--notify("drawing, brightness is "..tonumber(arc_brightness))
+		local br_circ = dec2hex(arc.brightness)
+		local br_arc = "ff"
+		if arc.brightness * 1.5 < 255 then
+			br_arc = dec2hex(arc.brightness * 2)
+		end
+
+		-- surrounding circle
+		cr:set_source(gears.color("#FFFFFF"..br_circ))
+		cr:arc(width/2, height/2, height/2, 0, math.pi*2)
+		cr:fill()
+
+		-- inner arc
+		cr:set_source(gears.color("#FFFFFF"..br_arc))
+		cr:set_line_width(height/10)
+		cr:arc(width/2, height/2, height/3.5, 0, math.pi*2)
+		cr:stroke()
+
+		-- small central circle
+		cr:set_source(gears.color("#FFFFFF"..br_arc))
+		cr:arc(width/2, height/2, height/9, 0, math.pi*2)
+		cr:fill()
+	end
+
 	s.widgets.launcher = wibox.widget {
 		{
-			markup = "  a  ",
-			widget = wibox.widget.textbox,
+			{
+				{
+					forced_width = s.panels.primary.height,
+					widget = arc,
+				},
+				margins = util.scale(4),
+				widget = wibox.container.margin,
+			},
+			layout = wibox.layout.fixed.horizontal,
 		},
-		bg = beautiful.bg_focus,
+		bg = gears.color.transparent,
 		widget = wibox.container.background,
 	}
 
+	local menu_holder = {}
 	awesome.connect_signal("slimeos::menu_is_ready", function(menu)
+		menu_holder.menus = menus
+
+		-- Create a launcher. Since it is created asynchronously and thus does not
+		-- anything, it doesn't need to be assinged to a variable.
+		category_launcher {
+			screen = s,
+			menus  = menus,
+		}
+
 		buttonify {
-			widget               = s.widgets.launcher,
-			mouse_effects        = true,
-			button_color_hover   = beautiful.accent_primary_medium,
-			button_color_normal  = beautiful.accent_primary_darker,
-			button_color_press   = beautiful.accent_primary_brighter,
-			button_color_release = beautiful.accent_primary_medium,
+			widget = s.widgets.launcher,
+			button_color_hover      = "",
+			button_color_normal     = "",
+			button_color_press      = "",
+			button_color_release    = "",
+			button_callback_hover   = function(w, b) arc:fade_to(0.3) end,
+			button_callback_normal  = function(w, b) arc:fade_to(0.1) end,
+			button_callback_press   = function(w, b) arc:fade_to(0.5) end,
 			button_callback_release = function(w, b)
+				arc:fade_to(0.1)
 				local width  = mouse.current_widget_geometry.width  + beautiful.useless_gap
 				local height = mouse.current_widget_geometry.height + beautiful.useless_gap
 
 				if b == 1 then
-					awful.spawn({
-						"rofi", "-config", globals.config_dir.."/config/rofi/config.rasi",
-						"-xoffset", tostring(beautiful.useless_gap),
-						"-yoffset", tostring(-(height)),
-						"-show", "drun",
-					})
+					--awful.spawn({
+					--	"rofi", "-config", globals.config_dir.."/config/rofi/config.rasi",
+					--	"-xoffset", tostring(beautiful.useless_gap),
+					--	"-yoffset", tostring(-(height)),
+					--	"-show", "drun",
+					--})
+					awesome.emit_signal("slimeos::toggle_launcher", s)
 				elseif b == 2 then
 					menu.settings:toggle()
 				elseif b == 3 then
@@ -428,15 +649,28 @@ screen.connect_signal("request::desktop_decoration", function(s)
 		}
 	end)
 
-	s.widgets.layoutbox = awful.widget.layoutbox()
-
 	-- Create a textclock widget
+	s.widgets.textclock_clock = wibox.widget {
+		format = "%H:%M",
+		align = "center",
+		font = "Roboto, Semibold "..beautiful.font_size,
+		forced_width = util.scale(45),
+		widget = wibox.widget.textclock,
+	}
+
 	s.widgets.textclock = wibox.widget {
-		wibox.widget.textclock(),
+		{
+			s.widgets.textclock_clock,
+			left = util.scale(12),
+			right = util.scale(12),
+			widget = wibox.container.margin,
+		},
 		widget = wibox.container.background,
 	}
 
-	buttonify { s.widgets.textclock }
+	buttonify {
+		s.widgets.textclock,
+	}
 
 	s.widgets.month_calendar = awful.widget.calendar_popup.month {
 		style_header = {
@@ -448,46 +682,158 @@ screen.connect_signal("request::desktop_decoration", function(s)
 			border_color = beautiful.accent_primary_bright,
 			bg_color = beautiful.accent_primary_medium,
 		},
+		screen = s,
+	}
+
+	s.boxes.control_center = require("modules.widgets.control_center") {
+		screen = s,
 	}
 
 	s.widgets.textclock:connect_signal("button::release", function()
-		s.widgets.month_calendar:toggle()
-		awful.placement.bottom_right(s.widgets.month_calendar, {
+		s.boxes.control_center:toggle()
+		awful.placement.bottom_right(s.boxes.control_center, {
 			honor_workarea = true,
+			margins = util.scale(10),
 		})
+
+		--s.widgets.month_calendar:toggle()
+		--awful.placement.bottom_right(s.widgets.month_calendar, {
+		--	honor_workarea = true,
+		--})
 	end)
 
-	-- Create the wibar
-	s.panels = {}
+	s.widgets.systray = wibox.widget {}
+	if s == screen.primary then
+		s.widgets.systray = wibox.widget {
+			wibox.widget.systray(false),
+			top = util.scale(2),
+			bottom = util.scale(2),
+			left = util.scale(16),
+			right = util.scale(2),
+			widget = wibox.container.margin,
+		}
+	end
 
-	s.panels.primary = awful.wibar {
-		position = "bottom",
-		screen = s,
-		height = 38,
+	s.widgets.media_info = wibox.widget {
+		widget = media_info,
+	}
+
+	-- Visually merge some components into nicer-looking "blocks"
+	s.panel_blocks = {}
+
+	s.panel_blocks.left = wibox.widget {
+		s.widgets.launcher,
+		s.widgets.taglist,
+		s.widgets.promptbox,
+		layout = wibox.layout.fixed.horizontal,
+	}
+
+	s.widgets.dock = dock()
+
+	local placement = (awful.placement.align)
+	placement(s.mydock, {
+		position = "top",
+		honor_workarea = true,
+	})
+
+	s.panel_blocks.center = wibox.widget {
+		s.widgets.dock,
+		wibox.widget.separator {
+			orientation = "vertical",
+			span_ratio = 0.8,
+			forced_width = util.scale(5),
+		},
+		s.widgets.tasklist,
+		layout = wibox.layout.fixed.horizontal,
+	}
+
+	--awesome.connect_signal("slimeos::dock::favorites_update", function(favorites)
+	--	s.panel_blocks.center:emit_signal("widget::redraw_needed")
+	--end)
+
+	s.panel_blocks.right = wibox.widget {
+		beautiful.color.make_dynamic(wibox.widget {
+			{
+				--s.widgets.keyboardlayout,
+				--wibox.widget.systray(),
+				s.widgets.systray,
+				s.widgets.textclock,
+				s.widgets.layoutbox,
+				layout = wibox.layout.fixed.horizontal,
+			},
+			bg = "#FFFFFF10",
+			shape = function(cr, w, h) gears.shape.rounded_bar(cr, w, h) end,
+			shape_border_color = "#FFFFFF20",
+			shape_border_width = util.scale(1),
+			widget = wibox.container.background,
+		}, {
+			bg = "bg",
+			fg = "fg",
+			shape_border_color = "bc"
+		}, {
+			dark = {
+				bg = "#FFFFFF10",
+				fg = beautiful.get_dynamic_color("fg_normal"),
+				bc = "#FFFFFF20",
+			},
+			light = {
+				bg = "#00000030",
+				fg = beautiful.get_dynamic_color("fg_normal"),
+				bc = "#00000060",
+			},
+		}),
+		margins = util.scale(2),
+		widget = wibox.container.margin,
 	}
 
 	-- Add widgets to the wibox
-	--[[ ]]
-	s.panels.primary.widget = absolute_center_wibar(
-		{
-			s.widgets.launcher,
-			s.widgets.taglist,
-			s.widgets.promptbox,
-			layout = wibox.layout.fixed.horizontal,
-		},
-		{
-			s.widgets.tasklist,
-			layout = wibox.layout.fixed.horizontal,
-		},
-		{
-			media_info {},
-			s.widgets.keyboardlayout,
-			wibox.widget.systray(),
-			s.widgets.textclock,
-			s.widgets.layoutbox,
-			layout = wibox.layout.fixed.horizontal,
-		}
-	) --]]
+	s.panels.primary.widget = beautiful.color.make_dynamic(wibox.widget {
+		absolute_center(
+			{
+				s.panel_blocks.left,
+				layout = wibox.layout.fixed.horizontal,
+			},
+			{
+				s.panel_blocks.center,
+				layout = wibox.layout.fixed.horizontal,
+			},
+			{
+				--s.widgets.media_info,
+				s.panel_blocks.right,
+				layout = wibox.layout.fixed.horizontal,
+			},
+			{
+				awful.button({}, 3, function()
+					--notify(menu_holder.menus.tools)
+					--menu_holder.menus.tools:show()
+				end)
+			}
+		),
+		bg = beautiful.bg_normal,
+		shape = panel_shape,
+		--shape_border_width = util.scale(1),
+		--shape_border_color = beautiful.accent_secondary_medium,
+		widget = wibox.widget.background,
+	})
+
+	local maximized_clients = 0
+	client.connect_signal("property::maximized", function(c)
+		if c.screen == s then
+			if c.maximized then
+				maximized_clients = maximized_clients + 1
+			else
+				maximized_clients = maximized_clients - 1
+			end
+		end
+
+		if maximized_clients > 0 then
+			s.panels.primary.shape = gears.shape.rectangle
+			s.panels.primary.widget.shape = gears.shape.rectangle
+		else
+			s.panels.primary.shape = panel_shape
+			s.panels.primary.widget.shape = panel_shape
+		end
+	end)
 
 	--[[ ] ]
 	s.panels.primary.widget = wibox.widget {
@@ -555,8 +901,34 @@ screen.connect_signal("request::desktop_decoration", function(s)
 	}
 	--]]
 
+	s.desktop_icons = desktop_icons {
+		screen = s,
+	}
+
+	--local gmb = global_menu_bar {
+	--	screen = s,
+	--}
+
+	--gmb:clear()
+	--gmb:add(gmb.create_button {
+	--	label = "File",
+	--	onclick = function(self)
+	--		notify("You clicked 'File'.")
+	--	end
+	--})
+	--gmb:add(gmb.create_button {
+	--	label = "Edit",
+	--	onclick = function(self)
+	--		notify("You clicked 'Edit'.")
+	--	end
+	--})
+
+	--s.boxes.desktop_search = desktop_search {
+	--	screen = s,
+	--}
+
 	-- Add desktop icons
-	freedesktop.desktop.add_icons {
+	--[[freedesktop.desktop.add_icons {
 		screen     = s, ---@type screen Screen where to show icons
 		dir        = util.default(os.getenv("XDG_DESKTOP_DIR"), "~/Desktop"), ---@type string Directory to lookup
 		showlabels = true, ---@type boolean Define whether to show labels or not
@@ -590,7 +962,36 @@ screen.connect_signal("request::desktop_decoration", function(s)
 			x = 20,
 			y = 20,
 		},
+	}--]]
+
+	--[[ local W = {
+		wibox.widget {
+			text   = "CORRECT TEXT!",
+			widget = wibox.widget.textbox,
+		},
+		mt = {
+			bg     = "#FF0000",
+			widget = wibox.container.background,
+		},
 	}
+	W.mt.__index = W.mt
+	setmetatable(W, W.mt)
+	local B = wibox {
+		x       = 30,
+		y       = 30,
+		width   = 200,
+		height  = 100,
+		visible = true,
+		ontop   = true,
+		screen  = s,
+		widget  = W,
+	}
+
+	local str = ""
+	for k, v in ipairs(W) do
+		str = ("%s[%s] = %s,\n"):format(str, k, v)
+	end
+	notify(str) ]]
 end)
 -- }}}
 
@@ -639,11 +1040,32 @@ ruled.client.connect_signal("request::rules", function()
 		properties = { titlebars_enabled = true      }
 	}
 
+	-- Force XAVA (X11 Audio Visualizer for Alsa) to behave nicely
+	ruled.client.append_rule {
+		rule       = { class = { "XAVA" } },
+		properties = {
+			sticky = true
+		}
+	}
+
 	-- Set Firefox to always map on the tag named "2" on screen 1.
 	-- ruled.client.append_rule {
 	--     rule       = { class = "Firefox"     },
 	--     properties = { screen = 1, tag = "2" }
 	-- }
+
+	ruled.client.append_rule {
+		rule = {
+			class = {
+				"Xfce4-panel",
+			},
+		},
+		properties = {
+			focusable = false,
+			sticky = true,
+			above = true,
+		}
+	}
 end)
 
 -- }}}
@@ -947,24 +1369,101 @@ end)
 
 -- }}}
 
+-- -- Center all windows on spawn.
+-- -- Please note that this will also re-center all clients when restarting awesome in-place.
+-- client.connect_signal("manage", function(c)
+-- 	c.x = c.screen.geometry.width / 2 - c.width / 2
+-- 	c.y = c.screen.geometry.height / 2 - c.height / 2
+-- 	if not c.icon then
+-- 		notify(string.format("Client '%s' does not appear to have an icon", c.name))
+-- 		awful.spawn.easy_async_with_shell([[]])
+-- 	end
+-- 	--c.shape = function(cr, w, h)
+-- 	--	gears.shape.rounded_rect(cr, w, h, 8)
+-- 	--end
+-- end)
+
+_PLASMA_PANEL_OFFSET_X = -1920
+client.connect_signal("manage", function(c)
+	if c.class == "Xfce4-panel" and c.type == "dock" then
+		--local sh = c.size_hints
+		--notify(util.table_to_string(sh), 0)
+		c.y = 0
+		--c.focusable = false
+		--c.sticky = true
+		--c.above = true
+		c.sticky = true
+		c.focusable = false
+	end
+
+	if c.class == "plasmashell" then
+		c.floating = true
+		if c.type == "desktop" then
+			--c.sticky = true
+			--c.below = true
+			--c.focusable = false
+			--c.width = 600
+			--c.height = 600
+			--c.floating = true
+			c:kill()
+		elseif c.type == "dock" then
+			_PLASMA_PANEL_OFFSET_X = _PLASMA_PANEL_OFFSET_X + 1920
+			c.sticky = true
+			c.focusable = false
+			c.x = c.screen.geometry.x + _PLASMA_PANEL_OFFSET_X
+			c.y = c.screen.geometry.y
+		end
+	end
+
+	if c.class == "firefox" then
+		if c.role == "PictureInPicture" then
+			c.border_width = 0
+			c.sticky = true
+			c.ontop = true
+			c.focusable = false
+		end
+	end
+
+	if c.type == "normal" then
+		c.shape = function(cr, w, h)
+			gears.shape.rounded_rect(cr, w, h, util.scale(20))
+		end
+	end
+
+	--c.x      = sh.program_position.x
+	--c.y      = sh.program_position.y
+	--c.width  = sh.program_size.width
+	--c.height = sh.program_size.height
+end)
+
+client.connect_signal("property::fullscreen", function(c)
+	if c.fullscreen then
+		c.shape = gears.shape.rectangle
+	else
+		if c.type == "normal" then
+			c.shape = function(cr, w, h)
+				gears.shape.rounded_rect(cr, w, h, util.scale(20))
+			end
+		end
+	end
+end)
+
+client.connect_signal("property::ontop", function(c)
+	if c.ontop then
+		c.border_color = beautiful.color.current.orange
+	else
+		c.border_color = nil
+	end
+end)
+
 -- Enable sloppy focus, so that focus follows mouse.
 client.connect_signal("mouse::enter", function(c)
+	if c.focusable ~= false then
+		client.focus = c
+	end
+
 	c:activate {
 		context = "mouse_enter",
 		raise   = false,
 	}
-end)
-
--- Center all windows on spawn.
--- Please note that this will also re-center all clients when restarting awesome in-place.
-client.connect_signal("manage", function(c)
-	c.x = c.screen.geometry.width / 2 - c.width / 2
-	c.y = c.screen.geometry.height / 2 - c.height / 2
-	if not c.icon then
-		notify(string.format("Client '%s' does not appear to have an icon", c.name))
-		awful.spawn.easy_async_with_shell([[]])
-	end
-	--c.shape = function(cr, w, h)
-	--	gears.shape.rounded_rect(cr, w, h, 8)
-	--end
 end)
