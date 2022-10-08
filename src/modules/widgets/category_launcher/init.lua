@@ -8,7 +8,8 @@ local wibox_layout_overflow = require("wibox_layout_overflow")
 
 local buttonify = require("modules.lib.buttonify")
 local util      = require("modules.lib.util")
-
+local tts = util.table_to_string
+local ttss = util.table_to_string_simple
 
 
 local all_apps, all_apps_mt = {}, { is_generated = false }
@@ -37,6 +38,8 @@ function all_apps_mt:update(fn)
 				apps[#apps + 1] = v
 			end
 
+			-- TODO: Remove apps with .NoDisplay = true
+
 			table.sort(sorted_app_names)
 
 			local tmp = {}
@@ -56,6 +59,12 @@ function all_apps_mt:update(fn)
 			end
 
 			getmetatable(self).is_generated = true
+
+			local dump_table = {}
+			for _, app in pairs(self) do
+				dump_table[#dump_table+1] = app.Name
+			end
+			util.dump_to_file(tts(apps), "/tmp/apps.lua")
 
 			fn(self)
 		end)
@@ -83,6 +92,54 @@ function all_apps_mt:run(fn)
 	end
 end
 
+all_apps_mt._return_key_mt = { --- If no icon is defined, just return the input
+	__index = function(self, k)
+		return k
+	end
+}
+
+all_apps_mt.category_icon_map = setmetatable({
+	All         = "applications-all",
+	Favorites   = "applications-featured",
+	Recent      = "history",
+
+	AudioVideo  = "applications-multimedia",
+	Development = "applications-development",
+	Education   = "applications-education",
+	Game        = "applications-games",
+	Graphics    = "applications-graphics",
+	Network     = "applications-internet",
+	Office      = "applications-office",
+	Science     = "applications-science",
+	Settings    = "preferences-desktop",
+	System      = "applications-system",
+	Utility     = "applications-utilities",
+	Other       = "applications-other",
+}, all_apps_mt._return_key_mt)
+
+all_apps_mt.category_id_map = setmetatable({
+	All         = "applications-all",
+	Favorites   = "applications-featured",
+	Recent      = "history",
+
+	AudioVideo  = "applications-multimedia",
+	Development = "applications-development",
+	Education   = "applications-education",
+	Game        = "applications-games",
+	Graphics    = "applications-graphics",
+	Network     = "applications-internet",
+	Office      = "applications-office",
+	Science     = "applications-science",
+	Settings    = "preferences-desktop",
+	System      = "applications-system",
+	Utility     = "applications-utilities",
+	Other       = "applications-other",
+}, all_apps_mt._return_key_mt)
+
+menubar.menu_gen.generate(function(menu)
+	util.dump_to_file(tts(menu), "/tmp/menu.lua")
+end)
+
 --all_apps:run(function(self)
 	--local str = ""
 	--local filtered_apps = self:filter("Ala")
@@ -93,7 +150,7 @@ end
 --	notify(util.table_to_string(self[1]), 0)
 --end)
 
-
+--notify(tts(menubar.menu_gen.all_categories), 0)
 
 local function category_launcher(args)
 	args = util.default(args, {})
@@ -101,43 +158,90 @@ local function category_launcher(args)
 		screen = util.default(args.screen, screen.primary),
 	}
 
-	menubar.menu_gen.generate(function(menu)
-		local testmenu = { other = {} }
+	-- TODO: Switch away from automatic category detection and use https://specifications.freedesktop.org/menu-spec/latest/apa.html instead
 
-		for k, v in ipairs(menu) do
-			if v.category then
-				if not testmenu[v.category] then
-					testmenu[v.category] = {}
+	all_apps:run(function(apps)
+		util.dump_to_file(tts(apps), "/tmp/apps.lua")
+		---@type string[]
+		local category_names = {
+			"AudioVideo",  "Development", "Education",
+			"Game",        "Graphics",    "Network",
+			"Office",      "Science",     "Settings",
+			"System",      "Utility",     "Other",
+		}
+		local categorized_apps = {
+			AudioVideo  = {},
+			--Audio       = {}, -- (hidden/ignored)
+			--Video       = {}, -- (hidden/ignored)
+			Development = {},
+			Education   = {},
+			Game        = {}, -- Games
+			Graphics    = {},
+			Network     = {}, -- Internet
+			Office      = {},
+			Science     = {},
+			Settings    = {},
+			System      = {},
+			Utility     = {},
+			Other       = {},
+		}
+
+		_ghfjd = 0
+		for k, app in ipairs(apps) do
+			if app.Categories then
+				--app.category = app.Categories[1]
+				local category_was_found = false
+				for _, app_category in ipairs(app.Categories) do
+					for _, known_category in ipairs(category_names) do
+						if app_category == known_category then
+							table.insert(categorized_apps[app_category], app)
+							--app.category = app_category
+							--category_was_found = true
+							--break
+						end
+					end
+					--if category_was_found then
+					--	break
+					--end
 				end
-			else
-				v.category = "other"
 			end
 
-			testmenu[v.category][v.name] = v
-		end
+			app.category = app.category or "Other"
 
-		local categories = {} ---@type string[]
-		for k, _ in pairs(testmenu) do
-			table.insert(categories, k)
+			--categorized_apps[app.category][#(categorized_apps[app.category]) + 1] = app
 		end
-		table.sort(categories)
+		table.sort(category_names)
+
+		util.dump_to_file(tts(category_names), "/tmp/category_names.lua")
+
 		local items = {} ---@type table[]
-		for k,v in ipairs(categories) do
+		for k,category in ipairs(category_names) do
 			local subm = {}
 			local subm_keys = {}
-			for k2, v2 in pairs(testmenu[v]) do
-				table.insert(subm_keys, v2.name)
+
+			for _, app in pairs(categorized_apps[category]) do
+				table.insert(subm_keys, app.Name)
 			end
 			table.sort(subm_keys)
-			for k2, v2 in pairs(subm_keys) do
-				local app = testmenu[v][v2]
-				table.insert(subm, { app.name, app.cmdline, app.icon })
+
+			for sk, name in pairs(subm_keys) do
+				local app = categorized_apps[category][sk]
+				local cmd = ""
+				if app.cmdline then
+					cmd = app.cmdline
+				elseif app.Exec then
+					cmd = app.Exec:match("(.+)%%")
+				end
+				table.insert(subm, { app.Name, cmd, app.Icon })
 			end
 
-			local category_icon = menubar_utils.lookup_icon("applications-"..v)
+			-- TODO Add a proper categorization
+			local category_icon -- = menubar_utils.lookup_icon("applications-"..category)
 
-			items[k] = { v, subm, category_icon }
+			items[k] = { category, subm, category_icon }
 		end
+
+		util.dump_to_file(tts(items), "/tmp/items.lua")
 
 		local rasti_menu_wibox = wibox {
 			width   = util.scale(500),
@@ -173,7 +277,11 @@ local function category_launcher(args)
 		}
 
 		for _, category in ipairs(items) do
-			local name, apps, icon = category[1], category[2], category[3]
+			--if _ghfjd < 3 then
+			--	_ghfjd = _ghfjd + 1
+			--	notify(ttss(category[2][1]), 0)
+			--end
+			local name, category_apps, icon = category[1], category[2], menubar_utils.lookup_icon(category[3] or "") or nil
 
 			local app_list_widget_grid = wibox.widget {
 				homogeneous = true,
@@ -183,8 +291,8 @@ local function category_launcher(args)
 				layout      = wibox.layout.grid,
 			}
 
-			for _, app in pairs(apps) do
-				local app_name, app_cmd, app_icon = app[1], app[2], app[3]
+			for _, app in pairs(category_apps) do
+				local app_name, app_cmd, app_icon = app[1], app[2], menubar_utils.lookup_icon(app[3] or "") or nil
 
 				local app_widget_icon
 				if app_icon then
@@ -304,7 +412,7 @@ local function category_launcher(args)
 		}
 
 		rasti_menu_wibox_subwidgets.current_app_list_widget = wibox.widget {
-			rasti_menu_wibox_subwidgets.app_lists["internet"],
+			rasti_menu_wibox_subwidgets.app_lists[category_names[1]],
 			layout = wibox_layout_overflow.vertical,
 		}
 
@@ -337,7 +445,7 @@ local function category_launcher(args)
 				gears.shape.rounded_rect(cr, w, h, util.scale(4))
 			end,
 			forced_height = util.scale(40),
-			widget = wibox.widget.background,
+			widget = wibox.container.background,
 		}
 
 		rasti_menu_wibox_subwidgets.power_menu_options = wibox.widget {
@@ -353,7 +461,7 @@ local function category_launcher(args)
 				gears.shape.rounded_rect(cr, w, h, util.scale(4))
 			end,
 			forced_height = util.scale(40),
-			widget = wibox.widget.background,
+			widget = wibox.container.background,
 		}
 
 		--t.menu_submenu_icon
@@ -372,7 +480,7 @@ local function category_launcher(args)
 				shape  = function(cr, w, h)
 					gears.shape.rounded_rect(cr, w, h, util.scale(10))
 				end,
-				widget = wibox.widget.background,
+				widget = wibox.container.background,
 			},
 			right  = util.scale(10),
 			bottom = util.scale(10),

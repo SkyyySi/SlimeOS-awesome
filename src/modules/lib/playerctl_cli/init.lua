@@ -62,13 +62,13 @@ local function send_metadata_signal(line)
 	---@field art_cairo userdata
 	local metadata = {
 		player_name = tmp[1],
-		position    = tmp[2],
-		status      = is_playing_status_parser(tmp[3]),
+		position    = tonumber(tmp[2]) or 0,
+		status      = is_playing_status_parser(tmp[3]) or false,
 		volume      = tmp[4],
 		album       = tmp[5],
 		artist      = tmp[6],
 		title       = tmp[7],
-		length      = tonumber(tmp[8]),
+		length      = tonumber(tmp[8]) or 0,
 		art_url     = tmp[9],
 	}
 

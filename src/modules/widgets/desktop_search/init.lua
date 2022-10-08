@@ -43,7 +43,7 @@ local function main(args)
 		},
 		bg     = "#282A36",
 		shape  = gears.shape.rounded_bar,
-		widget = wibox.widget.background,
+		widget = wibox.container.background,
 	}
 
 	desktop_wibox:connect_signal("button::release", function(w,_,_,b)

@@ -26,7 +26,7 @@ local function main(args)
 			right = util.scale(12),
 			widget = wibox.container.margin,
 		},
-		widget = wibox.widget.background,
+		widget = wibox.container.background,
 	}
 
 	buttonify {

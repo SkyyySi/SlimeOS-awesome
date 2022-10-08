@@ -571,6 +571,10 @@ end
 ---@param depth? integer
 ---@return string
 function util.table_to_string(t, indent, depth)
+	if type(t) ~= "table" then
+		return ""
+	end
+
 	indent = indent or "    "
 	depth = depth or 0
 	local bracket_indent = util.string_multiply(indent, depth)
@@ -617,6 +621,10 @@ function util.table_to_string(t, indent, depth)
 end
 
 function util.table_to_string_simple(t)
+	if type(t) ~= "table" then
+		return ""
+	end
+
 	local outs
 	local first = true
 
@@ -632,7 +640,7 @@ function util.table_to_string_simple(t)
 			first = false
 			outs = ("{ [%s] = %s"):format(k, v)
 		else
-			outs = (", [%s] = %s"):format(k, v)
+			outs = ("%s, [%s] = %s"):format(outs, k, v)
 		end
 	end
 

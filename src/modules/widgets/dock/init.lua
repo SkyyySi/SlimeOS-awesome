@@ -130,19 +130,28 @@ function dock.gen_fav_widget(args, app)
 			{
 				{
 					{
-					image      = icon,
-					clip_shape = gears.shape.circle,
-					widget     = wibox.widget.imagebox,
+						{
+							image      = icon,
+							clip_shape = gears.shape.circle,
+							widget     = wibox.widget.imagebox,
+						},
+						margins = util.scale(1),
+						widget  = wibox.container.margin,
 					},
-					margins = util.scale(1),
-					widget  = wibox.container.margin,
+					bg     = "#EEEEEE",
+					shape  = gears.shape.circle,
+					widget = wibox.container.background,
 				},
-				bg     = "#EEEEEE",
-				shape  = gears.shape.circle,
-				widget = wibox.container.background,
+				margins = util.scale(2),
+				widget  = wibox.container.margin,
 			},
-			margins = util.scale(2),
-			widget  = wibox.container.margin,
+			bg = {
+				type  = "radial",
+				from  = { util.scale(19), util.scale(21), util.scale(12) },
+				to    = { util.scale(19), util.scale(21), util.scale(16) },
+				stops = { { 0, "#000000A0" }, { 1/3, "#00000070" }, { 2/3, "#00000030" }, { 1, "#0000" } }
+			  },
+			widget = wibox.container.background,
 		},
 		shape  = gears.shape.circle,
 		widget = wibox.container.background,

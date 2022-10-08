@@ -37,9 +37,9 @@ local function main(args)
 	args = {}
 
 	local script = [[
-		cfgdir=']]..gears.filesystem.get_configuration_dir()..[[modules/widgets/awesome_xdg_menu'
+		cfgdir=']]..util.get_script_path()..[['
 		[ -d "${cfgdir}" ] || mkdir -p "${cfgdir}"
-		xdg_menu --desktop GNOME --format awesome --root-menu "/etc/xdg/menus/arch-applications.menu" > "${cfgdir}/menus.lua"
+		"]]..util.get_script_path()..[[/xdg_menu" --desktop GNOME --format awesome --root-menu "/etc/xdg/menus/arch-applications.menu" > "${cfgdir}/menus.lua"
 	]]
 
 	local apps = {}
@@ -49,36 +49,18 @@ local function main(args)
 	apps.web_browser  = globals.web_browser  or "firefox"
 
 	awful.spawn.easy_async_with_shell(script, function(stdout, stderr, reason, exit_code)
-		local function sort_table_by_key(t)
-			local index_table = {}
-
-			for i,v in pairs(t) do
-				table.insert(index_table, i)
-			end
-
-			table.sort(index_table)
-
-			local output_table = {}
-
-			for i,v in pairs(index_table) do
-				output_table[i] = { index = v, value = t[v] }
-			end
-
-			return output_table
-		end
-
-		local menu_parts = dofile(util.get_script_path().."menus.lua")
-		local xdg_menu = {}
-
-		xdg_menu = sort_table_by_key(menu_parts)
+		local xdg_menu = dofile(util.get_script_path().."/menus.lua")
+		table.sort(xdg_menu, function(a, b)
+			return a[1] < b[1]
+		end)
 
 		-- Entries related to awesome itself
 		local menu_awesome = {
-			{ "Show hotkeys", function() hotkeys_popup.show_help(nil, awful.screen.focused()) end },
-			{ "Show manual", apps.terminal .. " -e man awesome" },
-			{ "Edit config", apps.editor .. " " .. globals.config_dir },
-			{ "Restart awesome", awesome.restart },
-			{ "Quit awesome", function() awesome.quit() end },
+			{ "Show hotkeys", function() hotkeys_popup.show_help(nil, awful.screen.focused()) end, menubar.utils.lookup_icon("input-keyboard-symbolic")   or "/usr/share/icons/Papirus-Dark/symbolic/devices/input-keyboard-symbolic.svg" },
+			{ "Show manual", apps.terminal .. " -e man awesome",                                   menubar.utils.lookup_icon("help-info-symbolic")        or "/usr/share/icons/Papirus-Dark/symbolic/actions/help-info-symbolic.svg" },
+			{ "Edit config", apps.editor .. " " .. globals.config_dir,                             menubar.utils.lookup_icon("edit-symbolic")             or "/usr/share/icons/Papirus-Dark/symbolic/actions/edit-symbolic.svg" },
+			{ "Restart awesome", awesome.restart,                                                  menubar.utils.lookup_icon("system-restart-symbolic")   or "/usr/share/icons/Papirus-Dark/symbolic/actions/system-restart-symbolic.svg" },
+			{ "Quit awesome", function() awesome.quit() end,                                       menubar.utils.lookup_icon("application-exit-symbolic") or "/usr/share/icons/Papirus-Dark/symbolic/actions/application-exit-symbolic.svg" },
 		}
 
 		-- Entries related to power management
@@ -88,21 +70,21 @@ local function main(args)
 			{ "Reboot",       "sudo reboot",          menubar.utils.lookup_icon("system-reboot") },
 			{ "Suspend",      "systemctl suspend",    menubar.utils.lookup_icon("system-suspend") },
 			{ "Hibernate",    "systemctl hibernate",  menubar.utils.lookup_icon("system-hibernate") },
-			{ "Log out",      function() awesome.exit() end, menubar.utils.lookup_icon("system-log-out") },
+			{ "Log out",      function() awesome.quit() end, menubar.utils.lookup_icon("system-log-out") },
 		}
 
 		local menu_template = {
-			{ "Awesome",      menu_awesome,      beautiful.awesome_icon  or nil },
-			{ "Power",        menu_power,        beautiful.icon.power    or nil },
+			{ "Awesome",      menu_awesome,      beautiful.awesome_icon },
+			{ "Power",        menu_power,        beautiful.icon.power    or menubar.utils.lookup_icon("system-shutdown-symbolic")     or "/usr/share/icons/Papirus-Dark/symbolic/actions/system-shutdown-symbolic.svg" },
 			--{ "Applications", xdg_menu,          beautiful.icon.app      or nil },
-			{ "Terminal",     apps.terminal,     beautiful.icon.terminal or nil },
-			{ "File manager", apps.file_browser, beautiful.icon.folder   or nil },
-			{ "Web browser",  apps.web_browser,  beautiful.icon.web      or nil },
+			{ "Terminal",     apps.terminal,     beautiful.icon.terminal or menubar.utils.lookup_icon("utilities-terminal-symbolic")  or "/usr/share/icons/Papirus-Dark/symbolic/apps/utilities-terminal-symbolic.svg" },
+			{ "File manager", apps.file_browser, beautiful.icon.folder   or menubar.utils.lookup_icon("system-file-manager-symbolic") or "/usr/share/icons/Papirus-Dark/symbolic/apps/system-file-manager-symbolic.svg" },
+			{ "Web browser",  apps.web_browser,  beautiful.icon.web      or menubar.utils.lookup_icon("web-browser-symbolic")         or "/usr/share/icons/Papirus-Dark/symbolic/apps/web-browser-symbolic.svg" },
 			{ "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯" },
 		}
 
 		for _,v in pairs(xdg_menu) do
-			table.insert(menu_template, { v.index, v.value })
+			table.insert(menu_template, { v[1], v[2] })
 		end
 
 		local settings_menu = {

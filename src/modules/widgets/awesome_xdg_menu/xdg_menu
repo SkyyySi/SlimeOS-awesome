@@ -2252,7 +2252,7 @@ elsif ($format eq 'ion3') {
 elsif ($format eq 'awesome') {
 	$output = "local menu_parts = {}\n\n";
 	$output .= output_awesome_menu($menu);
-	$output .= "return menu_parts\n";
+	$output .= "return xdg_menu\n";
 }
 elsif ($format eq 'twm') {
 	$output = output_twm_menu($menu);

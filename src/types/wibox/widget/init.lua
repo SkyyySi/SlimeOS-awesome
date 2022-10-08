@@ -1,5 +1,5 @@
 ---@class wibox.widget
--- -@field background wibox.widget.background
+-- -@field background wibox.container.background
 ---@field base wibox.widget.base
 ---@field calendar wibox.widget.calendar
 ---@field checkbox wibox.widget.checkbox
@@ -15,7 +15,7 @@
 ---@field textclock wibox.widget.textclock
 local cls = {}
 
----@type wibox.widget.background
+---@type wibox.container.background
 ---@deprecated Use `wibox.container.background` instead.
 cls.background = nil
 

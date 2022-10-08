@@ -86,6 +86,8 @@ end
 spawn_once { "picom",--[[ "--experimental-backends",]] "--config", globals.config_dir.."/config/picom/picom.conf" }
 spawn_once { "pasystray" }
 spawn_once { "kdeconnect-indicator" }
+spawn_once { "flameshot" }
+spawn_once { os.getenv("HOME").."/.screenlayout/layout.sh" }
 --]]
 
 local theme_dir = gears.filesystem.get_configuration_dir().."themes/"..globals.theme
@@ -105,7 +107,8 @@ local media_info = require("modules.widgets.media_info")
 local better_menu = require("modules.widgets.better_menu")
 local global_menu_bar = require("modules.widgets.global_menu_bar")
 local dock = require("modules.widgets.dock")
-local category_launcher = require("modules.widgets.category_launcher")
+--local category_launcher = require("modules.widgets.category_launcher")
+local tasklist = require("modules.widgets.tasklist")
 -- }}}
 
 -- {{{ Menu
@@ -260,10 +263,11 @@ screen.connect_signal("request::desktop_decoration", function(s)
 		visible = true,
 		below   = true,
 		type    = "desktop",
+		screen  = s,
 		bg      = gears.color.transparent,
 	}
 
-	awful.placement.top(s.boxes.desktop_clock, { margins = { top = util.scale(300) } })
+	awful.placement.top(s.boxes.desktop_clock, { margins = { top = util.scale(100) } })
 
 	s.boxes.desktop_clock.widget = {
 		{
@@ -278,7 +282,7 @@ screen.connect_signal("request::desktop_decoration", function(s)
 			font    = "Source Sans Pro, "..tostring(math.floor(util.scale(16))),
 			align   = "center",
 			valign  = "top",
-			format  = "%F",
+			format  = "%A, %F",
 			refresh = 1,
 			widget  = wibox.widget.textclock,
 		},
@@ -417,6 +421,10 @@ screen.connect_signal("request::desktop_decoration", function(s)
 	}
 
 	-- Create a tasklist widget
+	s.widgets.tasklist = tasklist {
+		screen = s,
+	}
+	--[[
 	s.widgets.tasklist = awful.widget.tasklist {
 		screen  = s,
 		filter  = awful.widget.tasklist.filter.currenttags,
@@ -466,6 +474,7 @@ screen.connect_signal("request::desktop_decoration", function(s)
 			widget = wibox.container.background,
 		},
 	}
+	--]]
 
 	-- Keyboard map indicator and switcher
 	--s.widgets.keyboardlayout = awful.widget.keyboardlayout()
@@ -560,7 +569,7 @@ screen.connect_signal("request::desktop_decoration", function(s)
 			end
 		end
 
-		gears.timer.start_new(0.01, function()
+		gears.timer.start_new(0.002, function()
 			return update()
 		end)
 	end
@@ -613,10 +622,10 @@ screen.connect_signal("request::desktop_decoration", function(s)
 
 		-- Create a launcher. Since it is created asynchronously and thus does not
 		-- anything, it doesn't need to be assinged to a variable.
-		category_launcher {
-			screen = s,
-			menus  = menus,
-		}
+		--category_launcher {
+		--	screen = s,
+		--	menus  = menus,
+		--}
 
 		buttonify {
 			widget = s.widgets.launcher,
@@ -639,7 +648,8 @@ screen.connect_signal("request::desktop_decoration", function(s)
 					--	"-yoffset", tostring(-(height)),
 					--	"-show", "drun",
 					--})
-					awesome.emit_signal("slimeos::toggle_launcher", s)
+					--awesome.emit_signal("slimeos::toggle_launcher", s)
+					menu.main:toggle()
 				elseif b == 2 then
 					menu.settings:toggle()
 				elseif b == 3 then
@@ -813,7 +823,7 @@ screen.connect_signal("request::desktop_decoration", function(s)
 		shape = panel_shape,
 		--shape_border_width = util.scale(1),
 		--shape_border_color = beautiful.accent_secondary_medium,
-		widget = wibox.widget.background,
+		widget = wibox.container.background,
 	})
 
 	local maximized_clients = 0
@@ -1467,3 +1477,138 @@ client.connect_signal("mouse::enter", function(c)
 		raise   = false,
 	}
 end)
+
+--[[
+do
+	local rasti_launcher = require("modules.widgets.rasti_launcher")
+	local menubar_utils = require("modules.widgets.dock.menubar_utils")
+	local wibox_layout_overflow = require("wibox_layout_overflow")
+
+	local function create_new_grid_item(app, args)
+		args = util.default(args, {})
+		args = {
+			width  = util.default(args.width,  util.scale(140)), ---@type number
+			height = util.default(args.height, util.scale(90)), ---@type number
+		}
+
+		local widget_icon = wibox.widget {
+			image = menubar_utils.lookup_icon(app.Icon or ""),
+			forced_height = util.scale(60),
+			halign = "center",
+			valign = "center",
+			widget = wibox.widget.imagebox,
+		}
+
+		local widget_label = wibox.widget {
+			text = app.Name or "",
+			align = "center",
+			valign = "bottom",
+			forced_height = util.scale(30),
+			widget = wibox.widget.textbox,
+		}
+
+		local widget_button = wibox.widget {
+			{
+				{
+					nil,
+					widget_icon,
+					widget_label,
+					layout = wibox.layout.align.vertical,
+				},
+				halign = "center",
+				layout = wibox.container.place,
+			},
+			bg = gears.color.transparent,
+			shape = function(cr, w, h) gears.shape.rounded_rect(cr, w, h, util.scale(5)) end,
+			shape_border_width = util.scale(1),
+			shape_border_color = gears.color.transparent,
+			widget = wibox.container.background,
+		}
+
+		local cmd = ""
+		if app.cmdline then
+			cmd = app.cmdline
+		elseif app.Exec then
+			if app.Exec:match("(.*)%%") then
+				cmd = app.Exec:match("(.*)%%")
+			else
+				cmd = app.Exec
+			end
+		end
+
+		buttonify {
+			widget = widget_button,
+			button_callback_release = function(w, b)
+				if b == 1 then
+					notify(util.table_to_string(app), 0)
+					awful.spawn.with_shell(cmd)
+				end
+			end,
+		}
+
+		local widget = wibox.widget {
+			widget_button,
+			forced_width = args.width,
+			forced_height = args.height,
+			widget = wibox.container.constraint,
+		}
+
+		return widget
+	end
+
+	local grid = wibox.widget {
+		homogeneous   = true,
+		expand        = false,
+		orientation   = "horizontal",
+		spacing       = util.scale(5),
+		--min_cols_size = util.scale(140),
+		min_rows_size = util.scale(90),
+		--forced_num_cols = 100,
+		forced_num_rows = 6,
+		--forced_width = util.scale(800),
+		forced_height = util.scale(600),
+		layout        = wibox.layout.grid,
+	}
+
+	rasti_launcher.utils.all_apps:run(function(all_apps)
+		all_apps = all_apps
+			:remove_hidden()
+			:sort()
+
+		local firefox = all_apps[1]
+		for app in all_apps do
+			if app.Name == "Firefox" then
+				firefox = app
+			end
+			grid:add(create_new_grid_item(app))
+		end
+		util.dump_to_file(util.table_to_string(firefox), "/tmp/firefox.lua")
+		--grid:add(create_new_grid_item(all_apps[1]))
+	end)
+
+	local widget = wibox.widget {
+		grid,
+		layout = wibox_layout_overflow.horizontal,
+	}
+
+	local wb = wibox {
+		width   = util.scale(800),
+		height  = util.scale(600),
+		visible = false,
+		type    = "desktop",
+		bg      = gears.color.transparent,
+		widget  = {
+			widget,
+			bg     = "#00000080",
+			shape  = function(cr, w, h)
+				gears.shape.rounded_rect(cr, w, h, util.scale(10))
+			end,
+			widget = wibox.container.background,
+		},
+	}
+
+	awful.placement.centered(wb)
+
+	--rasti_launcher.utils.find_icon("firefox")
+end
+--]]

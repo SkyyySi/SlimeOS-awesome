@@ -154,6 +154,8 @@ menu_parts["Systemwerkzeuge"] = {
 	{"OpenJDK Java 11 Shell", "xterm -e /usr/lib/jvm/java-11-openjdk/bin/jshell", "/usr/share/icons/hicolor/16x16/apps/java11-openjdk.png" },
 	{"Oracle VM VirtualBox", "VirtualBox ", "/usr/share/icons/hicolor/16x16/mimetypes/virtualbox.png" },
 	{"PCManFM Dateimanager", "pcmanfm "},
+	{"Paketaktualisierung", "gpk-update-viewer"},
+	{"Pakete", "gpk-application"},
 	{"Protokolle", "gnome-logs"},
 	{"QTerminal", "qterminal"},
 	{"QTerminal herabhängend", "qterminal --drop"},
@@ -176,7 +178,7 @@ menu_parts["Systemwerkzeuge"] = {
 	{"WezTerm", "wezterm start --cwd . --", "/usr/share/icons/hicolor/128x128/apps/org.wezfurlong.wezterm.png" },
 	{"XTerm", "xterm", "/usr/share/pixmaps/xterm-color_48x48.xpm" },
 	{"Xfce-Terminal", "xfce4-terminal", "/usr/share/icons/hicolor/16x16/apps/org.xfce.terminal.png" },
-	{"dconf-Editor", "dconf-editor", "/usr/share/icons/hicolor/16x16/apps/ca.desrt.dconf-editor.png" },
+	{"dconf-Editor", "dconf-editor"},
 	{"gmrun", "gmrun", "/usr/share/pixmaps/gmrun.png" },
 	{"kitty", "kitty", "/usr/share/icons/hicolor/256x256/apps/kitty.png" },
 	{"nnn", "xterm -e nnn", "/usr/share/icons/hicolor/64x64/apps/nnn.png" },
@@ -210,6 +212,8 @@ menu_parts["Unterhaltungsmedien"] = {
 	{"PulseAudio-Lautstärkeregler", "pavucontrol"},
 	{"Qt V4L2 test Utility", "qv4l2", "/usr/share/icons/hicolor/16x16/apps/qv4l2.png" },
 	{"Qt V4L2 video capture utility", "qvidcap", "/usr/share/icons/hicolor/16x16/apps/qvidcap.png" },
+	{"Shotcut", "shotcut ", "/usr/share/icons/hicolor/64x64/apps/org.shotcut.Shotcut.png" },
+	{"SimpleScreenRecorder", "simplescreenrecorder --logfile", "/usr/share/icons/hicolor/16x16/apps/simplescreenrecorder.png" },
 	{"Sonixd", "sonixd", "/usr/share/pixmaps/sonixd.png" },
 	{"Soundux", "/opt/soundux/soundux", "/usr/share/pixmaps/soundux.png" },
 	{"Spek", "spek ", "/usr/share/icons/hicolor/16x16/apps/spek.png" },
@@ -243,6 +247,7 @@ menu_parts["Zubehör"] = {
 	{"Kupfer", "kupfer ", "/usr/share/icons/hicolor/22x22/apps/kupfer.png" },
 	{"Kvantum Manager", "kvantummanager"},
 	{"LXQt Archiver", "lxqt-archiver "},
+	{"Latte", "/usr/bin/latte-dock", "/usr/share/icons/hicolor/16x16/apps/latte-dock.svg" },
 	{"Laufwerke", "gnome-disks"},
 	{"Launchy", "launchy ", "/usr/share/pixmaps/launchy_icon.png" },
 	{"MarkText", "/usr/lib/marktext/marktext ", "/usr/share/icons/hicolor/16x16/apps/marktext.png" },
@@ -291,4 +296,4 @@ local xdg_menu = {
 	{"Zubehör", menu_parts["Zubehör"]},
 }
 
-return menu_parts
+return xdg_menu
