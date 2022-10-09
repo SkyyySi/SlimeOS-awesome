@@ -9,11 +9,210 @@ local launcher_utils = require("modules.widgets.rasti_launcher.utils")
 
 local lfs = require("lfs")
 
+local lgi = require("lgi")
+local cairo = lgi.cairo
+
+--[[
+	TODO list:
+	* Save the layout to load it back in later
+	  * Currently,
+	* Allow for file drag-and-drop (requires the Freedesktop XDND API to be available first)
+	* Watch the desktop for changes and automatically update it accordingly (probably using `inotifywatch`)
+	* Documentation and cleanup...
+--]]
+
+
+local savestate = {}
+
+savestate.util = {}
+
+--- Replace escape sequences with their litteral representation.
+---@param s string
+---@return string, integer
+function savestate.util.string_escape(s)
+	return s:gsub("\a", [[\a]])
+		:gsub("\b", [[\b]])
+		:gsub("\f", [[\f]])
+		:gsub("\n", [[\n]])
+		:gsub("\r", [[\r]])
+		:gsub("\t", [[\t]])
+		:gsub("\v", [[\v]])
+		:gsub("\\", [[\\]])
+		:gsub("\"", [[\"]])
+		:gsub("\'", [[\']])
+end
+
+---@param str string
+---@param n number
+---@return string
+function savestate.util.string_multiply(str, n)
+	if n <= 0 then
+		return ""
+	end
+
+	local outs = ""
+	local floor = math.floor(n)
+	local point = n - floor
+
+	for i = 1, n do
+		outs = outs..str
+	end
+
+	if point > 0 then
+		local len = #str * floor
+		outs = outs..str:sub(1, math.floor(len))
+	end
+
+	return outs
+end
+
+---@param t table
+---@param indent? string
+---@param depth? integer
+---@return string
+function savestate.util.table_to_string(t, indent, depth)
+	if type(t) ~= "table" then
+		return ""
+	end
+
+	indent = indent or "\t" --- Tab masterrace!!!
+	depth = depth or 0
+	local bracket_indent = savestate.util.string_multiply(indent, depth)
+	local full_indent = bracket_indent..indent
+
+	if next(t) == nil then
+		if depth > 0 then
+			return "{},"
+		else
+			return "{}"
+		end
+	end
+
+	local outs = "{\n"
+
+	for k, v in pairs(t) do
+		local tv = type(v)
+		local tk = type(k)
+
+		if tk == "string" then
+			k = '"'..savestate.util.string_escape(k)..'"'
+		elseif tk == "function" or tk == "thread" or tk == "userdata" then
+			k = "[["..tostring(k).."]]"
+		end
+
+		if tv == "table" then
+			outs = ("%s%s[%s] = %s"):format(outs, full_indent, k, savestate.util.table_to_string(v, indent, depth + 1).."\n")
+		else
+			if tv == "string" then
+				v = '"'..savestate.util.string_escape(v)..'"'
+			elseif tv == "function" or tv == "thread" or tv == "userdata" then
+				v = "[["..tostring(v).."]]"
+			end
+
+			outs = ("%s%s[%s] = %s,\n"):format(outs, full_indent, k, v)
+		end
+	end
+
+	if depth > 0 then
+		return outs..bracket_indent.."},"
+	else
+		return outs..bracket_indent.."}"
+	end
+end
+
+savestate.env = {}
+
+savestate.env.home_dir  = os.getenv("HOME")
+savestate.env.cache_dir = os.getenv("XDG_CACHE_HOME") or savestate.env.home_dir.."/.cache"
+savestate.store_dir = savestate.env.cache_dir.."/awesome"
+savestate.store_path = savestate.store_dir.."/desktop_icon_state.lua"
+
+---@param path? string
+---@param callback fun(content): boolean
+---@return boolean was_successful `false` if an error occured, otherwise true
+function savestate.read_file_content(path, callback)
+	path = path or savestate.store_path
+
+	local file,err = io.open(path, "w")
+	local content = ""
+
+	if file then
+		content = file:read()
+		file:close()
+	elseif err then
+		naughty.emit_signal("request::display_error", "ERROR: Could not load desktop layout from file: "..err)
+		return false
+	else
+		naughty.emit_signal("request::display_error", "ERROR: Could not load desktop layout from file!")
+		return false
+	end
+
+	return callback(content)
+end
+
+---@param path? string
+---@param content string
+---@return boolean was_successful `false` if an error occured, otherwise true
+function savestate.write_file_content(path, content)
+	path = path or savestate.store_path
+
+	local file,err = io.open(path, "w")
+
+	if file then
+		file:write(content)
+		file:close()
+	elseif err then
+		naughty.emit_signal("request::display_error", "ERROR: Could not save desktop layout to file: "..err)
+		return false
+	else
+		naughty.emit_signal("request::display_error", "ERROR: Could not save desktop layout to file!")
+		return false
+	end
+
+	return true
+end
+
+---@param path? string
+---@param callback fun(parsed_data): boolean
+---@return boolean was_successful `false` if an error occured, otherwise true
+function savestate.deserialize_file(path, callback)
+	path = path or savestate.store_path
+
+	local parsed_data
+
+	-- While loading random files is generally really studpid, if an
+	-- attacker wanted to inject your config with mallicious code,
+	-- they could just inject it into your rc.lua directly.
+	if pcall(function() return dofile(savestate.store_path) end) then
+		parsed_data = dofile(savestate.store_path)
+	else
+		naughty.emit_signal("request::display_error", "ERROR: Could not parse desktop layout from content!")
+		return false
+	end
+
+	return callback(parsed_data)
+end
+
+---@param path? string
+---@param content table
+---@return boolean was_successful `false` if an error occured, otherwise true
+function savestate.serialize_to_file(path, content)
+	path = path or savestate.store_path
+
+	local file_content = savestate.util.table_to_string(content)
+
+	local ret = savestate.write_file_content(path, "return "..file_content.."\n")
+
+	return ret
+end
+
+
 ---@param path string Filepath
 ---@param callback fun(mime_type: string)
 ---@param sub_slash_with_dash boolean
 local function get_mime_type(path, callback, sub_slash_with_dash)
 	awful.spawn.easy_async({ "file", "-b", "--mime-type", path }, function(stdout)
+		stdout = stdout:gsub("\n", "")
 		if sub_slash_with_dash then
 			stdout = stdout:gsub("/", "-")
 		end
@@ -21,11 +220,29 @@ local function get_mime_type(path, callback, sub_slash_with_dash)
 	end)
 end
 
+--- Determine whether a file is an image usable as a cairo surface
+--- using `wibox.widget.imagebox` or not.
+---@param path string Filepath
+---@return boolean file_can_be_surface
+local function file_can_be_cairo_surface(path)
+	path = path:lower()
+	local f_ext = path:match("%.(.*)$")
+
+	if not f_ext then
+		return false
+	end
+
+	for _, ext in ipairs { "png", "jpg", "bmp", "svg", "ppm" } do
+		if f_ext == ext then
+			return true
+		end
+	end
+
+	return false
+end
+
 local geo = {
-	x      = 0,
-	y      = 0,
-	width  = 0,
-	height = 0,
+	screen = {},
 	grid_spacing    = util.scale(10),
 	min_cols_size   = util.scale(50),
 	min_rows_size   = util.scale(50),
@@ -37,92 +254,101 @@ local geo = {
 local state = {
 	is_holding_icon = false,
 	is_over_icon = false,
-	holding_start_pos = { x = 0, y = 0, } ---@type { x: integer, y: integer }
+	holding_start_pos = { x = 0, y = 0, }, ---@type { x: integer, y: integer }
+	icons_of_screen = {},
+	saved_screens = {},
 }
 
-local desktop_grid = wibox.widget {
-	homogeneous     = true,
-	expand          = false,
-	orientation     = "horizontal",
-	spacing         = geo.grid_spacing,
-	min_cols_size   = geo.min_cols_size,
-	min_rows_size   = geo.min_rows_size,
-	forced_width    = geo.width,
-	forced_height   = geo.height,
-	forced_num_rows = geo.forced_num_rows,
-	layout          = wibox.layout.grid,
-}
+function state.save_layout()
+	awesome.emit_signal("desktop_grid::save_layout")
 
----@param x integer
----@param y integer
----@return {col: integer, row: integer}
-function desktop_grid:get_tile_index_at_coords(x, y)
-	local col = 1
-	do
-		local width = geo.button_width + self.spacing
-		while width * col < x do
-			col = col+ 1
+	--savestate.deserialize_file(nil, function(layout)
+	--	awesome.emit_signal("desktop_grid::load_layout", layout)
+	--end)
+
+	--[[
+	if #state.saved_screens > screen.count() then
+		notify(#state.saved_screens)
+		for k, v in pairs(state.saved_screens) do
+			state.saved_screens[k] = nil
 		end
 
-		if geo.forced_num_cols and col > geo.forced_num_cols then
-			col = geo.forced_num_cols
+		savestate.serialize_to_file(savestate.store_path, state.icons_of_screen)
+	end
+	--]]
+end
+
+do
+	local mt = {}
+	function mt:has_index(i)
+		for k, v in pairs(self) do
+			if v == i then
+				return true
+			end
+		end
+
+		return false
+	end
+
+	function mt:clear()
+		for k, v in pairs(self) do
+			self[k] = nil
 		end
 	end
 
-	local row = 1
-	do
-		local height = geo.button_height + self.spacing
-		while height * row < y do
-			row = row + 1
+	mt.insert = table.insert
+
+	function mt:__tostring()
+		local outs = ""
+		local first = true
+
+		for k, v in pairs(self) do
+			if first then
+				first = false
+				outs = "{ "..tostring(v)
+			else
+				outs = outs..", "..tostring(v)
+			end
 		end
 
-		if geo.forced_num_rows and row > geo.forced_num_rows then
-			row = geo.forced_num_rows
-		end
+		return outs.." }"
 	end
 
-	return { col = col, row = row }
+	mt.__index = mt
+
+	local indecies = setmetatable({}, mt)
+
+	awesome.connect_signal("desktop_grid::state_saved_on", function(index)
+		indecies:insert(index)
+
+		if indecies:has_index(index) and #indecies >= screen.count() then
+			--notify("All desktop layouts were retrived - saving now!")
+			indecies:clear()
+			--notify(savestate.util.table_to_string(state.icons_of_screen))
+			savestate.serialize_to_file(nil, state.icons_of_screen)
+		else
+			--notifyf("Still waiting for desktop layouts to be retrived\n%s", indecies)
+		end
+	end)
 end
-
---[[ This is a test
-for k, v in pairs { { 20, 20 }, { 170, 220 }, { 20, 530 } } do
-	local x, y = v[1], v[2]
-
-	--- Should print
-	---
-	--- - `1 = { col = 1, row = 1 }`
-	--- - `2 = { col = 3, row = 2 }`
-	--- - `3 = { col = 6, row = 1 }`
-	---
-	--- when run with a row amount limit of 10 and at least 13 columns of desktop icons.
-	local grid_coords = desktop_grid:get_tile_index_at_coords(x, y)
-	notify(("%d = { col = %d, row = %d }"):format(k, grid_coords.col, grid_coords.row), 0)
-
-	wibox {
-		x = x,
-		y = y,
-		width = 30,
-		height = 30,
-		visible = true,
-		widget = {
-			text = tostring(k),
-			valign = "center",
-			halign = "center",
-			font = "Source Sans Pro, Bold 12",
-			widget = wibox.widget.textbox,
-		}
-	}
-end
---]]
 
 local function create_desktop_icon(args)
 	args = util.default(args, {})
 	args = {
+		desktop_grid = args.desktop_grid, --- required
+		screen = util.default(args.screen, screen.primary),
 		icon = util.default(args.icon, beautiful.awesome_icon),
 		label = util.default(args.label, "Placeholder"),
 		font = util.default(args.font, beautiful.desktop_icon_font, "Source Sans Pro, Semibold "..beautiful.font_size),
-		onclick = util.default(args.onclick, function() naughty.notification { message = "The icon you just clicked doesn't appear to have an 'onclick()' function. Consier adding one to give it some actual functionality and to make this message go away." } end)
+		onclick = util.default(args.onclick, function() naughty.notification { message = "The icon you just clicked doesn't appear to have an 'onclick()' function. Consier adding one to give it some actual functionality and to make this message go away." } end),
+		type = util.default(args.type, "file"), ---@type "builtin"|"desktop"|"file"
+		tooltip = args.tooltip,
+		id = args.id,
 	}
+	args.tooltip = util.default(args.tooltip, args.label)
+	args.id = util.default(args.id, args.label)
+
+	local desktop_grid = args.desktop_grid
 
 	local widget_icon = wibox.widget {
 		image = args.icon,
@@ -158,6 +384,18 @@ local function create_desktop_icon(args)
 		shape_border_width = util.scale(1),
 		shape_border_color = gears.color.transparent,
 		widget = wibox.container.background,
+	}
+
+	local tooltip = awful.tooltip {
+		objects = { widget },
+		timeout = 0.2,
+		timer_function = function()
+			if state.is_holding_icon then
+				return ""
+			end
+
+			return args.tooltip
+		end,
 	}
 
 	local old_cursor, old_wibox
@@ -220,7 +458,7 @@ local function create_desktop_icon(args)
 			}
 			widget.floating_dnd_box_was_placed = false
 
-			mousegrabber.run(function(mouse_state)
+			mousegrabber.run(function(mouse_state) ---@param mouse_state { x: integer, y: integer, buttons: boolean[] }
 				if not widget.floating_dnd_box_was_placed then
 					widget.floating_dnd_box_was_placed = true
 					--awful.placement.under_cursor(widget.floating_dnd_box)
@@ -261,6 +499,7 @@ local function create_desktop_icon(args)
 								--notifyf("Potion changed:\n\told_col = %d, old_row = %d\n\tnew_col = %d, new_row = %d", old_pos.col, old_pos.row, new_pos.col, new_pos.row)
 								desktop_grid:remove_widgets_at(old_pos.row, old_pos.col, 1, 1)
 								desktop_grid:add_widget_at(widget, new_pos.row, new_pos.col, 1, 1)
+								state.save_layout()
 							else
 								local clear_bg = true
 								for _, widget_under_cursor in pairs(mouse.current_widgets) do
@@ -320,20 +559,25 @@ local function create_desktop_icon(args)
 	end)
 	--]]
 
+	function widget:get_icon()
+		return widget_label:get_image()
+	end
 	function widget:set_icon(path)
 		widget_icon:set_image(path)
-		widget_icon:emit_signal("widget::layout_changed")
-		widget_icon:emit_signal("widget::redraw_needed")
-		widget:emit_signal("widget::layout_changed")
-		widget:emit_signal("widget::redraw_needed")
 	end
 
+	function widget:get_label()
+		return widget_label:get_text()
+	end
 	function widget:set_label(label)
 		widget_label:set_text(label)
-		widget_label:emit_signal("widget::layout_changed")
-		widget_label:emit_signal("widget::redraw_needed")
-		widget:emit_signal("widget::layout_changed")
-		widget:emit_signal("widget::redraw_needed")
+	end
+
+	function widget:get_savedata()
+		return {
+			type = args.type,
+			id = args.id,
+		}
 	end
 
 	return widget
@@ -352,6 +596,7 @@ end
 ---@field show_terminal b
 ---@field show_files b
 ---@field show_hidden_files b
+---@field show_desktop_launchers b
 
 local tmp = io.popen("xdg-user-dir DESKTOP", "r")
 local desktop_dir_path = tmp:read("*a"):gsub("\n", "")
@@ -360,19 +605,13 @@ if not desktop_dir_path or desktop_dir_path == "" then
 end
 tmp = nil
 
-local desktop_already_created = false
+local screens_with_desktops = {}
 
 ---@param args? slimeos.widgets.desktop_icons.main_args
 local function main(args)
-	if not desktop_already_created then
-		desktop_already_created = true
-	else
-		return
-	end
-
 	args = util.default(args, {})
 	args = {
-		screen            = util.default(args.screen, screen.primary), ---@type screen
+		screen            = util.default(args.screen, screen.primary), -- -@type screen
 		show_computer     = util.default(args.show_computer, true),    ---@type boolean
 		show_trash_can    = util.default(args.show_trash_can, true),   ---@type boolean
 		show_network      = util.default(args.show_network, true),     ---@type boolean
@@ -382,63 +621,179 @@ local function main(args)
 		show_web_browser  = util.default(args.show_web_browser, true), ---@type boolean
 		show_terminal     = util.default(args.show_terminal, true),    ---@type boolean
 		show_files        = util.default(args.show_files, true),       ---@type boolean
-		show_hidden_files = util.default(args.show_hidden_files, false) ---@type boolean
+		show_desktop_launchers = util.default(args.show_desktop_launchers, true), ---@type boolean
+		show_hidden_files = util.default(args.show_hidden_files, false), ---@type boolean
 	}
 
-	geo.x = args.screen.workarea.x
-	geo.y = args.screen.workarea.y
-	geo.width = args.screen.workarea.width
-	geo.height = args.screen.workarea.height
+	geo.screen[args.screen.index] = {}
+	geo.screen[args.screen.index].x = args.screen.workarea.x
+	geo.screen[args.screen.index].y = args.screen.workarea.y
+	geo.screen[args.screen.index].width = args.screen.workarea.width
+	geo.screen[args.screen.index].height = args.screen.workarea.height
 
-	do
-		local width = geo.button_width + geo.grid_spacing
-		local i = 1
-		while width * i < geo.width do
-			i = i + 1
+	local desktop_grid = wibox.widget {
+		homogeneous     = true,
+		expand          = false,
+		orientation     = "horizontal",
+		spacing         = geo.grid_spacing,
+		min_cols_size   = geo.min_cols_size,
+		min_rows_size   = geo.min_rows_size,
+		forced_width    = geo.screen[args.screen.index].width,
+		forced_height   = geo.screen[args.screen.index].height,
+		forced_num_rows = geo.forced_num_rows,
+		layout          = wibox.layout.grid,
+	}
+
+	function desktop_grid:update_size()
+		self.x = geo.screen[args.screen.index].x
+		self.y = geo.screen[args.screen.index].y
+		self.width = geo.screen[args.screen.index].width
+		self.height = geo.screen[args.screen.index].height
+
+		do
+			local width = geo.button_width + geo.grid_spacing
+			local i = 1
+			while width * i < geo.screen[args.screen.index].width do
+				i = i + 1
+			end
+			i = i - 1 --- Prevent overshooting
+			geo.forced_num_cols = i
+			self.forced_num_cols = i
 		end
-		i = i - 1 --- Prevent overshooting
-		geo.forced_num_cols = i
-		desktop_grid.forced_num_cols = i
+
+		do
+			local height = geo.button_height + geo.grid_spacing
+			local i = 1
+			while height * i < geo.screen[args.screen.index].height do
+				i = i + 1
+			end
+			i = i - 1 --- Prevent overshooting
+			geo.forced_num_rows = i
+			self.forced_num_rows = i
+		end
 	end
 
-	do
-		local height = geo.button_height + geo.grid_spacing
-		local i = 1
-		while height * i < geo.height do
-			i = i + 1
+	---@param x integer
+	---@param y integer
+	---@return {col: integer, row: integer}
+	function desktop_grid:get_tile_index_at_coords(x, y)
+		local offset = geo.screen[args.screen.index]
+
+		local col = 1
+		do
+			local width = geo.button_width + self.spacing
+			while width * col < x - offset.x do
+				col = col+ 1
+			end
+
+			if geo.forced_num_cols and col > geo.forced_num_cols then
+				col = geo.forced_num_cols
+			end
 		end
-		i = i - 1 --- Prevent overshooting
-		geo.forced_num_rows = i
-		desktop_grid.forced_num_rows = i
+
+		local row = 1
+		do
+			local height = geo.button_height + self.spacing
+			while height * row < y - offset.y do
+				row = row + 1
+			end
+
+			if geo.forced_num_rows and row > geo.forced_num_rows then
+				row = geo.forced_num_rows
+			end
+		end
+
+		return { col = col, row = row }
 	end
+
+	--[[ This is a test
+	for k, v in pairs { { 20, 20 }, { 170, 220 }, { 20, 530 } } do
+		local x, y = v[1], v[2]
+
+		--- Should print
+		---
+		--- - `1 = { col = 1, row = 1 }`
+		--- - `2 = { col = 3, row = 2 }`
+		--- - `3 = { col = 6, row = 1 }`
+		---
+		--- when run with a row amount limit of 10 and at least 13 columns of desktop icons.
+		local grid_coords = desktop_grid:get_tile_index_at_coords(x, y)
+		notify(("%d = { col = %d, row = %d }"):format(k, grid_coords.col, grid_coords.row), 0)
+
+		wibox {
+			x = x,
+			y = y,
+			width = 30,
+			height = 30,
+			visible = true,
+			widget = {
+				text = tostring(k),
+				valign = "center",
+				halign = "center",
+				font = "Source Sans Pro, Bold 12",
+				widget = wibox.widget.textbox,
+			}
+		}
+	end
+	--]]
+
+	function desktop_grid:save_layout()
+		---@type {col: integer, row: integer, type: "builtin"|"desktop"|"file", id: string}[]
+		local data = {}
+
+		for _, child in pairs(self.children) do
+			table.insert(data, {})
+
+			local pos = self:get_widget_position(child)
+			data[#data].row = pos.row
+			data[#data].col = pos.col
+
+			local dat = child:get_savedata()
+			for k, v in pairs(dat) do
+				data[#data][k] = v
+			end
+		end
+
+		state.icons_of_screen[args.screen.index] = data
+		--table.insert(state.saved_screens, args.screen.index)
+
+		awesome.emit_signal("desktop_grid::state_saved_on", args.screen.index)
+		--return savestate.serialize_to_file(savestate.store_path, data)
+		--return savestate.serialize_to_file(savestate.icons_of_screen, data)
+	end
+
+	if not screens_with_desktops[args.screen.index] then
+		screens_with_desktops[args.screen.index] = true
+	else
+		return
+	end
+
+	desktop_grid:update_size()
 
 	local desktop_wibox = wibox {
 		type    = "desktop",
-		x       = geo.x,
-		y       = geo.y,
-		width   = geo.width,
-		height  = geo.height,
+		x       = geo.screen[args.screen.index].x,
+		y       = geo.screen[args.screen.index].y,
+		width   = geo.screen[args.screen.index].width,
+		height  = geo.screen[args.screen.index].height,
 		screen  = args.screen,
 		visible = true,
 		ontop   = false,
 		bg      = gears.color.transparent,
 	}
 
-	function desktop_wibox:update_layout(s)
+	local function update_geomgetry(s)
 		if not s then s = args.screen end
-		s = s.workarea
-		geo.x = s.x
-		geo.y = s.y
-		geo.width = s.width
-		geo.height = s.height
-		self.x = s.x
-		self.y = s.y
-		self.width = s.width
-		self.height = s.height
+		local sw = s.workarea
+		geo.screen[args.screen.index].x = sw.x
+		geo.screen[args.screen.index].y = sw.y
+		geo.screen[args.screen.index].width = sw.width
+		geo.screen[args.screen.index].height = sw.height
+		desktop_grid:update_size()
 	end
 
 	args.screen:connect_signal("property::workarea", function(s)
-		s.desktop_icons:update_layout()
+		update_geomgetry(s)
 	end)
 
 	local connected_to_menu = false
@@ -466,164 +821,268 @@ local function main(args)
 		end)
 	end)
 
-	--for i=1,5 do
-	--	desktop_grid:add(create_desktop_icon {
-	--		icon = beautiful.awesome_icon,
-	--		label = "Test Icon #"..tostring(i),
-	--		onclick = function(b)
-	--			notify("Clicked on icon #"..tostring(i))
-	--		end
-	--	})
-	--end
+	local generators = { builtin = {}, file = {} }
 
-	if args.show_computer then
-		local desktop_icon = create_desktop_icon {
-			icon = "/usr/share/icons/Papirus-Dark/24x24/places/user-home.svg",
-			label = "Home",
-			onclick = function()
-				awful.spawn.with_shell("QT_QPA_PLATFORMTHEME=lxqt xdg-open "..os.getenv("HOME"))
-			end
-		}
+	function generators.builtin.home()
+		if args.show_user_home then
+			local desktop_icon = create_desktop_icon {
+				desktop_grid = desktop_grid,
+				icon = "/usr/share/icons/Papirus-Dark/24x24/places/user-home.svg",
+				label = "Home",
+				type = "builtin",
+				id = "home",
+				screen = args.screen,
+				onclick = function()
+					awful.spawn.with_shell("QT_QPA_PLATFORMTHEME=lxqt xdg-open "..os.getenv("HOME"))
+				end,
+			}
 
-		desktop_grid:add(desktop_icon)
+			return desktop_icon
+		end
 	end
 
-	if args.show_user_home then
-		local desktop_icon = create_desktop_icon {
-			icon = "/usr/share/icons/Papirus-Dark/24x24/places/user-desktop.svg",
-			label = "Your Computer",
-			onclick = function()
-				awful.spawn.with_shell("QT_QPA_PLATFORMTHEME=lxqt xdg-open /")
-			end
-		}
+	function generators.builtin.computer()
+		if args.show_computer then
+			local desktop_icon = create_desktop_icon {
+				desktop_grid = desktop_grid,
+				icon = "/usr/share/icons/Papirus-Dark/24x24/places/user-desktop.svg",
+				label = "Your Computer",
+				type = "builtin",
+				id = "computer",
+				screen = args.screen,
+				onclick = function()
+					awful.spawn.with_shell("QT_QPA_PLATFORMTHEME=lxqt xdg-open /")
+				end,
+			}
 
-		desktop_grid:add(desktop_icon)
+			return desktop_icon
+		end
 	end
 
-	if args.show_trash then
-		local trash_path = os.getenv("HOME").."/.local/share/Trash/files"
-		local icon_empty, icon_filled = "/usr/share/icons/Papirus-Dark/24x24/places/user-trash.svg", "/usr/share/icons/Papirus-Dark/24x24/places/user-trash-full.svg"
+	function generators.builtin.trash()
+		if args.show_computer then
+			local trash_path = os.getenv("HOME").."/.local/share/Trash/files"
+			local icon_empty, icon_filled = "/usr/share/icons/Papirus-Dark/24x24/places/user-trash.svg", "/usr/share/icons/Papirus-Dark/24x24/places/user-trash-full.svg"
+			local label_empty, label_filled = "Trash", "Trash (filled)"
+
+			local desktop_icon = create_desktop_icon {
+				desktop_grid = desktop_grid,
+				icon = icon_empty,
+				label = "Trash",
+				type = "builtin",
+				id = "trash",
+				screen = args.screen,
+				onclick = function()
+					awful.spawn.with_shell("QT_QPA_PLATFORMTHEME=lxqt xdg-open "..trash_path)
+				end,
+			}
+
+			--- TODO: Use something like inotifywatch to watch for realtime updates (rather than running a timer)
+			gears.timer {
+				timeout = 1,
+				autostart = true,
+				call_now = true,
+				callback = function()
+					awful.spawn.easy_async({ "ls", "-A", trash_path }, function(stdout, stderr, reason, exit_code)
+						if stdout == "" then
+							desktop_icon:set_icon(icon_empty)
+							desktop_icon:set_label(label_empty)
+						else
+							desktop_icon:set_icon(icon_filled)
+							desktop_icon:set_label(label_filled)
+						end
+					end)
+				end,
+			}
+
+			return desktop_icon
+		end
+	end
+
+	function generators.builtin.web_browser()
+		if args.show_web_browser then
+			local desktop_icon = create_desktop_icon {
+				desktop_grid = desktop_grid,
+				icon = "/usr/share/icons/Papirus-Dark/24x24/categories/internet-web-browser.svg",
+				label = "Web Browser",
+				type = "builtin",
+				id = "web_browser",
+				screen = args.screen,
+				onclick = function()
+					awful.spawn.with_shell("xdg-open http://")
+				end,
+			}
+
+			return desktop_icon
+		end
+	end
+
+	function generators.builtin.terminal()
+		if args.show_terminal then
+			local desktop_icon = create_desktop_icon {
+				desktop_grid = desktop_grid,
+				icon = "/usr/share/icons/Papirus-Dark/24x24/categories/terminal.svg",
+				label = "Terminal",
+				type = "builtin",
+				id = "terminal",
+				screen = args.screen,
+				onclick = function()
+					awful.spawn.with_shell(util.default(globals.terminal, terminal, "xterm"))
+				end,
+			}
+
+			return desktop_icon
+		end
+	end
+
+	function generators.file.desktop(file, path)
+		local desktop_file = launcher_utils.parse_desktop_file(path)
+		if not desktop_file.IconPath or desktop_file.IconPath == "" or not util.file_exists(desktop_file.IconPath) then
+			desktop_file.IconPath = "/usr/share/icons/Papirus-Dark/24x24/apps/x.svg"
+		end
 
 		local desktop_icon = create_desktop_icon {
-			icon = icon_empty,
-			label = "Trash",
+			desktop_grid = desktop_grid,
+			icon = desktop_file.IconPath,
+			label = desktop_file.Name,
+			type = "desktop",
+			id = file,
+			screen = args.screen,
 			onclick = function()
-				awful.spawn.with_shell("QT_QPA_PLATFORMTHEME=lxqt xdg-open "..trash_path)
-			end
-		}
-
-		gears.timer {
-			timeout = 1,
-			autostart = true,
-			call_now = true,
-			callback = function()
-				awful.spawn.easy_async({ "ls", "-A", trash_path }, function(stdout, stderr, reason, exit_code)
-					if stdout == "" then
-						desktop_icon:set_icon(icon_empty)
-					else
-						desktop_icon:set_icon(icon_filled)
-					end
-				end)
+				awful.spawn.with_shell(desktop_file.Cmdline)
 			end,
 		}
 
-		desktop_grid:add(desktop_icon)
+		return desktop_icon
 	end
 
-	if args.show_web_browser then
+	function generators.file.directory(file, path)
 		local desktop_icon = create_desktop_icon {
-			icon = "/usr/share/icons/Papirus-Dark/24x24/categories/internet-web-browser.svg",
-			label = "Web Browser",
+			desktop_grid = desktop_grid,
+			icon = "/usr/share/icons/Papirus-Dark/24x24/places/folder.svg",
+			label = file,
+			type = "file",
+			screen = args.screen,
 			onclick = function()
-				awful.spawn.with_shell("xdg-open http://")
-			end
+				awful.spawn { "xdg-open", path }
+			end,
 		}
 
-		desktop_grid:add(desktop_icon)
-		desktop_icon:set_label("Web Browser")
+		return desktop_icon
 	end
 
-	if args.show_terminal then
+	function generators.file.document(file, path)
 		local desktop_icon = create_desktop_icon {
-			icon = "/usr/share/icons/Papirus-Dark/24x24/categories/terminal.svg",
-			label = "Terminal",
+			desktop_grid = desktop_grid,
+			icon = "/usr/share/icons/Papirus-Dark/24x24/mimetypes/application-x-zerosize.svg",
+			label = file,
+			type = "file",
+			screen = args.screen,
 			onclick = function()
-				awful.spawn.with_shell(util.default(globals.terminal, terminal, "xterm"))
-			end
+				awful.spawn { "xdg-open", path }
+			end,
 		}
 
-		desktop_grid:add(desktop_icon)
+		if file_can_be_cairo_surface(file) then
+			desktop_icon:set_icon(path)
+		else
+			get_mime_type(path, function(mime_type)
+				local icon = "/usr/share/icons/Papirus-Dark/24x24/mimetypes/application-x-zerosize.svg"
+				if mime_type then
+					icon = "/usr/share/icons/Papirus-Dark/24x24/mimetypes/"..mime_type..".svg"
+				end
+
+				desktop_icon:set_icon(icon)
+			end, true)
+		end
+
+		return desktop_icon
 	end
 
-	if args.show_files then
-		for file in lfs.dir(desktop_dir_path) do
-			if file ~= "." and file ~= ".." and (args.show_hidden_files or not file:match("^%.")) then
+	setmetatable(generators.file, {
+		__call = function(self, file)
+			if args.show_hidden_files or not file:match("^%.") then
 				local f = desktop_dir_path.."/"..file
 				local attr = lfs.attributes(f)
 
 				if attr.mode == "directory" then
-					local desktop_icon = create_desktop_icon {
-						icon = "/usr/share/icons/Papirus-Dark/24x24/places/folder.svg",
-						label = file,
-						onclick = function()
-							awful.spawn { "xdg-open", f }
-						end
-					}
-
-					desktop_grid:add(desktop_icon)
+					if args.show_files then
+						return self.directory(file, f)
+					end
 				else
-					if launcher_utils.is_desktop_file(f) then
-						local desktop_file = launcher_utils.parse_desktop_file(f)
-						if not desktop_file.IconPath or desktop_file.IconPath == "" or not util.file_exists(desktop_file.IconPath) then
-							desktop_file.IconPath = "/usr/share/icons/Papirus-Dark/24x24/apps/x.svg"
-						end
-
-						local desktop_icon = create_desktop_icon {
-							icon = desktop_file.IconPath,
-							label = desktop_file.Name,
-							onclick = function()
-								awful.spawn.with_shell(desktop_file.Cmdline)
-							end
-						}
-
-						desktop_grid:add(desktop_icon)
+					if launcher_utils.is_desktop_file(f) and args.show_desktop_launchers then
+						return self.desktop(file, f)
 					else
-						local desktop_icon = create_desktop_icon {
-							icon = "/usr/share/icons/Papirus-Dark/24x24/mimetypes/application-x-zerosize.svg",
-							label = file,
-							onclick = function()
-								awful.spawn { "xdg-open", f }
-							end
-						}
-
-						get_mime_type(f, function(mime_type)
-							local icon = "/usr/share/icons/Papirus-Dark/24x24/mimetypes/application-x-zerosize.svg"
-							if mime_type then
-								icon = "/usr/share/icons/Papirus-Dark/24x24/mimetypes/"..mime_type..".svg"
-							end
-
-							desktop_icon:set_icon(icon)
-						end, true)
-
-						desktop_grid:add(desktop_icon)
+						if args.show_files then
+							return self.document(file, f)
+						end
 					end
 				end
 			end
+		end,
+	})
+
+	local function try_add(desktop_icon)
+		if desktop_icon then
+			desktop_grid:add(desktop_icon)
 		end
 	end
 
-	--util.ls("/home/simon/Schreibtisch", function(item) ---@param item string
-		--notify(menubar.launcher_utils.parse_desktop_file(item))
-		--notify(item)
-	--end)
+	try_add(generators.builtin.home())
+	try_add(generators.builtin.computer())
+	try_add(generators.builtin.trash())
+	try_add(generators.builtin.web_browser())
+	try_add(generators.builtin.terminal())
+
+	for file in lfs.dir(desktop_dir_path) do
+		if file ~= "." and file ~= ".." then
+			try_add(generators.file(file))
+		end
+	end
+
+	awesome.connect_signal("desktop_grid::load_layout", function(layout)
+		if not layout then
+			return
+		end
+
+		local l = layout[args.screen.index]
+		desktop_grid:reset()
+		update_geomgetry()
+
+		--- sc = shortcut
+		for _, sc in pairs(l) do
+			local sc_parsed
+
+			if sc.type == "builtin" then
+				sc_parsed = generators.builtin[sc.id]()
+			else
+				sc_parsed = generators.file(sc.id)
+			end
+
+			desktop_grid:add_widget_at(sc_parsed, sc.row, sc.col, 1, 1)
+		end
+	end)
+
+	for file in lfs.dir(savestate.store_dir) do
+		if savestate.store_dir.."/"..file == savestate.store_path then
+			notify("FOUND IT")
+			savestate.deserialize_file(nil, function(layout)
+				awesome.emit_signal("desktop_grid::load_layout", layout)
+			end)
+
+			break
+		end
+	end
+
+	awesome.connect_signal("desktop_grid::save_layout", function()
+		desktop_grid:save_layout()
+	end)
 
 	desktop_wibox.widget = {
 		desktop_grid,
 		margins = util.scale(5),
 		widget = wibox.container.margin,
 	}
-
-	--notify(string.format("x: %s, y: %s\nw: %s, h: %s", args.screen.geometry.x, args.screen.geometry.y, args.screen.geometry.width, args.screen.geometry.height))
 
 	return desktop_wibox
 end

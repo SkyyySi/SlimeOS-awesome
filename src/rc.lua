@@ -1612,3 +1612,5 @@ do
 	--rasti_launcher.utils.find_icon("firefox")
 end
 --]]
+
+awesome.emit_signal("desktop_grid::load_layout")
