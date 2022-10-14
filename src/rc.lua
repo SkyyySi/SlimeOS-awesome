@@ -17,7 +17,7 @@ local menubar   = require("menubar")
 --- Print a message using naughty.notification
 ---
 --- Please only use this for debugging.
----@param text string The text that should be printed
+---@param text any The text that should be printed
 ---@param timeout? number The number of seconds to wait before auto closing the notification (default: `5`; `0` means no timeout)
 function notify(text, timeout)
 	timeout = timeout or 5
@@ -31,20 +31,41 @@ end
 --- Print a formatted message using naughty.notification and string.format.
 ---
 --- Please only use this for debugging.
----@vararg string The format string and text that should be printed
-function notifyf(...)
+---@param format string The format string and text that should be printed
+function notifyf(format, ...)
 	naughty.notification {
-		message = string.format(...),
+		message = string.format(format, ...),
 		timeout = 5,
 	}
 end
 
 require("modules.lib.bindings")
 
+-- {{{ Variable definitions
 local util = require("modules.lib.util")
 
-local config_auto_reload = require("modules.lib.config_auto_reload")
-config_auto_reload()
+local globals = require("modules.lib.globals")
+
+util.add_package_path(globals.config_dir .. "modules")
+util.add_package_path(globals.config_dir .. "modules/external")
+util.add_package_path(globals.config_dir .. "modules/lib")
+util.add_package_path(globals.config_dir .. "modules/widgets")
+
+-- Themes define colors, icons, font and wallpapers.
+local theme_dir = gears.filesystem.get_configuration_dir().."themes/"..globals.theme
+beautiful.init(theme_dir.."/theme.lua")
+
+local bling = require("modules.external.bling") -- needs to be loaded after running beautiful.init
+bling.module.flash_focus.enable()
+
+local playerctl_cli = require("modules.lib.playerctl_cli")
+playerctl_cli()
+
+local pulseaudio = require("modules.lib.pulseaudio")
+pulseaudio()
+
+--local config_auto_reload = require("modules.lib.config_auto_reload")
+--config_auto_reload()
 
 local titlebars = require("modules.widgets.titlebars")
 titlebars()
@@ -54,16 +75,9 @@ kill_all_but_one {
 	pattern = "^pasystray$"
 }
 
-local buttonify = require("modules.lib.buttonify")
 local desktop_icons = require("modules.widgets.desktop_icons")
---local async = require("modules.lib.async")
 
--- {{{ Variable definitions
--- Themes define colors, icons, font and wallpapers.
-local globals = require("modules.lib.globals")
-
-util.add_package_path(globals.config_dir .. "modules")
-util.add_package_path(globals.config_dir .. "modules/external")
+local buttonify = require("modules.lib.buttonify")
 
 --local autostart = require("modules.lib.autostart")
 ----[ [
@@ -87,20 +101,9 @@ spawn_once { "picom",--[[ "--experimental-backends",]] "--config", globals.confi
 spawn_once { "pasystray" }
 spawn_once { "kdeconnect-indicator" }
 spawn_once { "flameshot" }
+spawn_once { "lxqt-session" }
 spawn_once { os.getenv("HOME").."/.screenlayout/layout.sh" }
 --]]
-
-local theme_dir = gears.filesystem.get_configuration_dir().."themes/"..globals.theme
-beautiful.init(theme_dir.."/theme.lua")
-
-local bling = require("modules.external.bling") -- needs to be loaded after running beautiful.init
-bling.module.flash_focus.enable()
-
-local playerctl_cli = require("modules.lib.playerctl_cli")
-playerctl_cli()
-
-local pulseaudio = require("modules.lib.pulseaudio")
-pulseaudio()
 
 local media_info = require("modules.widgets.media_info")
 --local desktop_search = require("modules.widgets.desktop_search")
@@ -483,7 +486,7 @@ screen.connect_signal("request::desktop_decoration", function(s)
 	}
 
 	screen.connect_signal("request::wallpaper", function(s)
-		--[[
+		--[ [
 		-- Wallpaper
 		if beautiful.wallpaper then
 			local wp = beautiful.wallpaper
@@ -501,30 +504,30 @@ screen.connect_signal("request::desktop_decoration", function(s)
 				screen = s,
 				widget = {
 					{
-						{
+						--{
 							image      = wp,
 							resize     = true,
 							halign     = "center",
 							valign     = "center",
 							clip_shape = function(cr, w, h) gears.shape.rounded_rect(cr, w, h, util.scale(60)) end,
-							opacity    = 0.55,
+							opacity    = 1,
 							widget     = wibox.widget.imagebox,
-						},
-						margins = margin,
-						widget  = wibox.container.margin,
+						--},
+						--margins = margin,
+						--widget  = wibox.container.margin,
 					},
 					bg = gears.color {
 						type  = "linear",
 						from  = { 0, 0 },
 						to    = { 0, s.geometry.height },
-						stops = { { 0, "#666DCC" }, { 1, "#66A0CC" } },
+						stops = { { 0, "#404480" }, { 1, "#406480" } },
 					},
 					widget = wibox.container.background,
 				}
 			}
 		end
 		--]]
-		awful.spawn { "nitrogen", "--restore" }
+		--awful.spawn { "nitrogen", "--restore" }
 	end)
 
 	--[[
@@ -1613,4 +1616,4 @@ do
 end
 --]]
 
-awesome.emit_signal("desktop_grid::load_layout")
+--awesome.emit_signal("desktop_grid::load_layout")

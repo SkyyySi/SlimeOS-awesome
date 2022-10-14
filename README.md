@@ -2,6 +2,8 @@
 
 My dotfiles for the awesome window manager.
 
+![SlimeOS screenshot](/assets/screenshot0.png)
+
 TL;DR: To install on Arch Linux, please run the included `install.sh` script.
 
 ## Dependencies
@@ -11,6 +13,7 @@ TL;DR: To install on Arch Linux, please run the included `install.sh` script.
  - `playerctl` - For the media player widget
  - `inotify-tools` - For watching the file system for changes
  - `pacmd` (included with PulseAudio) and `perl` - For showing a volume slider in each apps title bar automatically
+ - `lxqt-config` and `lxqt-session` - For session managemant
  - Papirus icon theme (this will become optional later on when I properly clean up the code)
 
 ### Optional dependencies (recommend, but not strictly necessary):
@@ -23,7 +26,7 @@ TL;DR: To install on Arch Linux, please run the included `install.sh` script.
 To install all dependencies at once on Arch linux, you can use the following command (assuming you have the `paru` AUR helpler installed):
 
 ```bash
-paru --needed -S konsole-dracula-git ant-dracula-gtk-theme ant-dracula-kde-theme ant-dracula-kvantum-theme-git awesome-luajit-git playerctl inotify-tools pulseaudio perl papirus-icon-theme nitrogen konsole dolphin firefox
+paru --needed -S konsole-dracula-git ant-dracula-gtk-theme ant-dracula-kde-theme ant-dracula-kvantum-theme-git awesome-luajit-git playerctl inotify-tools pulseaudio perl papirus-icon-theme nitrogen konsole dolphin firefox lxqt-config lxqt-session
 ```
 
 ## Installing
