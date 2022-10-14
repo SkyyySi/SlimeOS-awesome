@@ -1,5 +1,9 @@
 # SlimeOS-awesome
 
+My dotfiles for the awesome window manager.
+
+TL;DR: To install on Arch Linux, please run the included `install.sh` script.
+
 ## Dependencies
 
 ### Required dependencies:
@@ -20,6 +24,18 @@ To install all dependencies at once on Arch linux, you can use the following com
 
 ```bash
 paru --needed -S konsole-dracula-git ant-dracula-gtk-theme ant-dracula-kde-theme ant-dracula-kvantum-theme-git awesome-luajit-git playerctl inotify-tools pulseaudio perl papirus-icon-theme nitrogen konsole dolphin firefox
+```
+
+## Installing
+
+After installing all dependencies, you can use the following command to install this repo:
+
+```bash
+git clone --recursive-submodules https://github.com/SkyyySi/SlimeOS-awesome "$HOME/Dots/awesome"
+if [[ -d "${XDG_CONFIG_HOME:-$HOME/.config}/awesome" ]]; then
+	mv "${XDG_CONFIG_HOME:-$HOME/.config}/awesome" "${XDG_CONFIG_HOME:-$HOME/.config}/awesome_backup_$(LANG=C date '+%F__%T')"
+fi
+ln -s "$HOME/Dots/awesome/src" "${XDG_CONFIG_HOME:-$HOME/.config}/awesome"
 ```
 
 ## Contributing
