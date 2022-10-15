@@ -213,8 +213,13 @@ local function main(args)
 		end
 
 		local bg = "#1E1F29"
-		if c.class == "firefox" and c.type == "normal" then
-			bg = "#1E1F29B0"
+		--- I use a custom theme for Firefox called "WaveFox", with
+		--- semi-transparency enabled. In addtion, just matching the
+		--- litteral string "firefox" is not enough here, because I
+		--- also use a fork of Firefox, `firefox-kde-opensuse`, which
+		--- uses that string as its WM_CLASS as well.
+		if c.class:lower():match("^firefox.*") and c.type == "normal" then
+			bg = bg.."B0"
 		end
 
 		get_clients_pids_with_pulse_sink_input_id()
@@ -260,7 +265,7 @@ local function main(args)
 										},
 										layout = wibox.layout.fixed.horizontal,
 									},
-									margins = 2,
+									margins = util.scale(4),
 									widget = wibox.container.margin,
 								},
 								wibox.widget {
@@ -293,7 +298,7 @@ local function main(args)
 										}),
 										layout = wibox.layout.fixed.horizontal(),
 									},
-									margins = 2,
+									margins = util.scale(4),
 									widget  = wibox.container.margin,
 								},
 								buttons
