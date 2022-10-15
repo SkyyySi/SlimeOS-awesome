@@ -916,6 +916,7 @@ screen.connect_signal("request::desktop_decoration", function(s)
 
 	s.desktop_icons = desktop_icons {
 		screen = s,
+		terminal_emulator = "konsole",
 	}
 
 	--local gmb = global_menu_bar {

@@ -1,0 +1,31 @@
+---@meta
+
+--- Schema for https://docs.gtk.org/gio/class.DesktopAppInfo.html
+---@class GDesktopAppInfo
+---@field new fun(desktop_id: str): GDesktopAppInfo._instance
+---@field new_from_filename fun(filename: str): GDesktopAppInfo._instance
+---@field new_from_keyfile fun(key_file: GKeyFile): GDesktopAppInfo._instance
+---@field get_implementations fun(): GDesktopAppInfo._instance[]
+---@field search fun(search_string: str): GDesktopAppInfo._instance[]
+---@field set_desktop_env fun(desktop_env: str)
+
+---@class GDesktopAppInfo._instance
+---@field get_action_name fun(self: GDesktopAppInfo._instance, action_name: str): str 
+---@field get_boolean fun(self: GDesktopAppInfo._instance, key: str): bool?
+---@field get_categories fun(self: GDesktopAppInfo._instance): str?
+---@field get_filename fun(self: GDesktopAppInfo._instance): str
+---@field get_generic_name fun(self: GDesktopAppInfo._instance): str?
+---@field get_is_hidden fun(self: GDesktopAppInfo._instance): bool
+---@field get_keywords fun(self: GDesktopAppInfo._instance): str?
+---@field get_locale_string fun(self: GDesktopAppInfo._instance, key: FreeDesktop.desktop_entry.known_keys): str?
+---@field get_nodisplay fun(self: GDesktopAppInfo._instance): bool
+---@field get_showin fun(dself: GDesktopAppInfo._instance, esktop_env: str): bool
+---@field get_startup_wm_class fun(self: GDesktopAppInfo._instance): str?
+---@field get_string fun(self: GDesktopAppInfo._instance, key: FreeDesktop.desktop_entry.known_keys): str?
+---@field get_string_list fun(self: GDesktopAppInfo._instance, key: FreeDesktop.desktop_entry.known_keys): str[]?
+---@field has_key fun(self: GDesktopAppInfo._instance, key: str): bool
+---@field launch_action fun(self: GDesktopAppInfo._instance, action_name: str, launch_context: GAppLaunchContext)
+---@field launch_uris_as_manager fun(self: GDesktopAppInfo._instance, uris: str[], launch_context: GAppLaunchContext, spawn_flags: GSpawnFlags, user_setup: GSpawnChildSetupFunc, user_setup_data: gpointer, pid_callback: GDesktopAppLaunchCallback, pid_callback_data: gpointer, error: GError)
+---@field launch_uris_as_manager_with_fds fun(self: GDesktopAppInfo._instance, uris: str[], launch_context: GAppLaunchContext, spawn_flags: GSpawnFlags, user_setup: GSpawnChildSetupFunc, user_setup_data: gpointer, pid_callback: GDesktopAppLaunchCallback, pid_callback_data: gpointer, stdin_fd: int, stdout_fd: int, stderr_fd: int, error: GError)
+---@field list_actions fun(self: GDesktopAppInfo._instance): str[]
+---@field filename str

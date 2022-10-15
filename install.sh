@@ -64,6 +64,11 @@ command_exists() {
 	return "$(command -v "$1" &> /dev/null; echo "$?")";
 }
 
+sucmd=sudo
+if ! command_exists sudo && command_exists doas; then
+	sucmd=doas
+fi
+
 installer_install_deps() {
 	if ! command_exists paru; then
 		msg_info "The paru AUR helper does not appear to be installed - installing that one first..."
@@ -72,6 +77,7 @@ installer_install_deps() {
 		if ! (( dryrun )); then
 			mkdir "$paru_dir" || exit 1
 			cd "$paru_dir" || exit 1
+			$sucmd pacman --needed -S base-devel
 			git clone "https://aur.archlinux.org/paru-bin" "./paru-bin" || exit 1
 			cd paru-bin || exit 1
 			makepkg -sifcr || exit 1
@@ -87,8 +93,8 @@ installer_install_deps() {
 installer_clone_repo() {
 	local repo_store_dir="$HOME/Dots/awesome"
 
-	msg_substep "Cloning '$repo_path' to '$repo_store_dir'..."
-	(( dryrun )) || git clone --recursive-submodules https://github.com/SkyyySi/SlimeOS-awesome "$repo_store_dir" || exit 1
+	#msg_substep "Cloning '$repo_path' to '$repo_store_dir'..."
+	#(( dryrun )) || git clone --recursive-submodules https://github.com/SkyyySi/SlimeOS-awesome "$repo_store_dir" || exit 1
 
 	if [[ -d $config_path ]]; then
 		local backup_path

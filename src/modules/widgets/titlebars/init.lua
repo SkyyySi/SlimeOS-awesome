@@ -6,6 +6,8 @@ local buttonify       = require("modules.lib.buttonify")
 local util            = require("modules.lib.util")
 local absolute_center = require("modules.lib.absolute_center")
 
+local font_size = beautiful.font_size or "12"
+
 local function make_button(widget, args)
 	args = {
 		normal     = args.normal   or "#FF000060",
@@ -221,7 +223,7 @@ local function main(args)
 
 		c.titlebars.top = awful.titlebar(c, {
 			position = "top",
-			font     = util.default(beautiful.titlebar_font, "Roboto, Semibold "..beautiful.font_size),
+			font     = util.default(beautiful.titlebar_font, "Roboto, Semibold "..font_size),
 			size     = util.scale(32),
 			bg       = gears.color.transparent,
 			shape = function(cr, w, h)

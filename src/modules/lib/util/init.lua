@@ -29,11 +29,17 @@ function util.tobool(x)
 	return not not x
 end
 
---- Returns `value` it it is not nil, otherwise returns `default`.
+--- Returns the first argument that is not `nil`
 ---@generic T1
----@vararg T1
----@return T1
-function util.default(...)
+---@generic T2
+---@param value T1
+---@vararg T2
+---@return T1|T2
+function util.default(value, ...)
+	if value ~= nil then
+		return value
+	end
+
 	for _, v in pairs {...} do
 		if v ~= nil then
 			return v
@@ -46,8 +52,8 @@ end
 --- Call a function *n* times.
 ---
 --- Note that this counts from 1 to the specified number
---- in order to stay consistent with lua's wierd and dumb
---- decision to start indexes at 1.
+--- in order to stay consistent with lua's decision to
+--- start indicies at 1.
 ---
 --- Usage:
 --- ```
@@ -522,7 +528,7 @@ function util.dump_to_file(str, path)
 		-- Note: I'm aware that `error()` exists, but I find that kind of error handling to be ugly
 		print("ERROR: Could not save file: "..err)
 	else
-		print("ERROR: Could not save file: "..err)
+		print("ERROR: Could not save file!")
 	end
 
 	return err

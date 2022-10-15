@@ -13,6 +13,8 @@ local color         = require("modules.lib.color")
 local rgb = color.rgb
 local hsl = color.hsl
 
+local lfs = require("lfs")
+
 local t = {}
 
 --[[t.palette = {
@@ -233,6 +235,9 @@ function t.color.make_dynamic(widget, fields, overrides)
 	return widget
 end
 
+--- Desktop icons
+t.desktop_icon_font = "Source Sans Pro, Semibold "..t.font_size
+
 -- Define the image to load
 t.titlebar_close_button_normal = theme_dir.."titlebar/edited/close_focus.png"
 t.titlebar_close_button_focus  = theme_dir.."titlebar/edited/close_focus.png"
@@ -286,7 +291,23 @@ t.titlebar_maximized_button_focus_inactive  = theme_dir.."titlebar/maximized_foc
 t.titlebar_maximized_button_normal_active   = theme_dir.."titlebar/maximized_normal_active.png"
 t.titlebar_maximized_button_focus_active    = theme_dir.."titlebar/maximized_focus_active.png"
 --]]
-t.wallpaper = theme_dir.."background.png"
+--t.wallpaper = theme_dir.."background.png"
+--t.wallpaper = theme_dir.."souei.png"
+
+t.wallpaper = nil --- Just to make sure it's not accidentally set beforehand
+local wallpaper_dir = theme_dir.."wallpapers/"
+local wp_pref_order = { "souei_transparent_alt.png", "souei_transparent.png", "souei.png", "background.png" }
+for _, wp in ipairs(wp_pref_order) do
+	for file in lfs.dir(wallpaper_dir) do
+		if file == wp then
+			t.wallpaper = wallpaper_dir..file
+			break
+		end
+	end
+	if t.wallpaper then
+		break
+	end
+end
 
 -- You can use your own layout icons like this:
 t.layout_fairh      = theme_dir.."layouts/fairhw.png"
