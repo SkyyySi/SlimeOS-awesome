@@ -204,6 +204,7 @@ awful.keyboard.append_global_keybindings({
 
 --- Special function keys
 awful.keyboard.append_global_keybindings {
+	awful.key({}, "XF86AudioMute", function() awful.spawn("amixer set Master toggle", false) end),
 	awful.key({}, "XF86AudioRaiseVolume", function()
 		awful.spawn("amixer set Master 5%+", false)
 		--notify("Raised volume by 5%")
@@ -212,10 +213,11 @@ awful.keyboard.append_global_keybindings {
 		awful.spawn("amixer set Master 5%-", false)
 		--notify("Lowered volume by 5%")
 	end),
-	awful.key({}, "XF86AudioMute", function() awful.spawn("amixer set Master toggle", false) end),
 	awful.key({}, "XF86AudioPlay", function() awful.spawn("playerctl play-pause", false) end),
 	awful.key({}, "XF86AudioPrev", function() awful.spawn("playerctl previous", false) end),
 	awful.key({}, "XF86AudioNext", function() awful.spawn("playerctl next", false) end),
+	awful.key({}, "XF86MonBrightnessDown", function() awful.spawn("xbacklight -dec 10", false) end),
+	awful.key({}, "XF86MonBrightnessUp",   function() awful.spawn("xbacklight -inc 10", false) end),
 }
 
 client.connect_signal("request::default_mousebindings", function()

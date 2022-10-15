@@ -275,6 +275,85 @@ local function main(args)
 
 	parts.media_control.widget = widget_wrapper(parts.media_control.widget_grid)
 
+	parts.brightness_control = {}
+
+	parts.brightness_control.widget = wibox.widget {
+		{
+			{
+				id = "brightness_label",
+				text   = "50%",
+				font   = "MesloLGS NF, Semibold "..beautiful.font_size,
+				align  = "center",
+				forced_width = util.scale(70),
+				widget = wibox.widget.textbox,
+			},
+			shape              = function(cr, w, h) gears.shape.rounded_rect(cr, w, h, util.scale(10)) end,
+			shape_border_width = util.scale(4),
+			shape_border_color = beautiful.color.current.background,
+			bg                 = beautiful.color.current.background,
+			widget             = wibox.container.background,
+		},
+		{
+			{
+				{
+					id = "brightness_slider",
+					bar_shape           = gears.shape.rounded_bar,
+					bar_height          = util.scale(4),
+					bar_color           = beautiful.color.current.background.."80",
+					handle_color        = beautiful.color.current.accent,
+					handle_shape        = gears.shape.circle,
+					handle_border_color = beautiful.color.current.background,
+					handle_border_width = util.scale(2),
+					value               = 50,
+					minimum             = 0,
+					maximum             = 100,
+					widget              = wibox.widget.slider,
+				},
+				left   = util.scale(8),
+				widget = wibox.container.margin,
+			},
+			forced_height = util.scale(30),
+			layout        = wibox.layout.fixed.vertical,
+		},
+		layout = wibox.layout.align.horizontal,
+	}
+
+	parts.brightness_control.dynamic_elements = {}
+
+	for _, child in pairs(parts.brightness_control.widget:get_children_by_id("brightness_label")) do
+		table.insert(parts.brightness_control.dynamic_elements, child)
+	end
+
+	for _, child in pairs(parts.brightness_control.widget:get_children_by_id("brightness_slider")) do
+		table.insert(parts.brightness_control.dynamic_elements, child)
+
+		child:connect_signal("property::value", function(self)
+			local v = tostring(self.value or 50)
+			awful.spawn { "xbacklight", "-set", v }
+			for _, element in ipairs(parts.brightness_control.dynamic_elements) do
+				if element ~= self then
+					element.value = self.value or 50
+					element.text = " "..v.."%"
+				end
+			end
+		end)
+	end
+
+	parts.brightness_control.update_timer = gears.timer {
+		timeout = 1,
+		autostart = true,
+		call_now = true,
+		callback = function(self)
+			awful.spawn.easy_async({ "xbacklight", "-get" }, function(stdout, stderr, reason, exit_code)
+				stdout = stdout:gsub("%s", "")
+				for _, element in ipairs(parts.brightness_control.dynamic_elements) do
+					element.value = tonumber(stdout) or 50
+					element.text = " "..stdout.."%"
+				end
+			end)
+		end,
+	}
+
 	parts.volume_control = {}
 
 	parts.volume_control.icons = {
@@ -300,7 +379,7 @@ local function main(args)
 
 	parts.volume_control.volume_label = wibox.widget {
 		text   = parts.volume_control.icons.medium.." 50%",
-		font   = "Roboto, Semibold "..beautiful.font_size,
+		font   = "MesloLGS NF, Semibold "..beautiful.font_size,
 		align  = "center",
 		forced_width = util.scale(70),
 		widget = wibox.widget.textbox,
@@ -366,9 +445,8 @@ local function main(args)
 	}
 
 	parts.volume_control.widget_flash = wibox.widget {
-		parts.volume_control.widget_flash_background,
-		{
-			{
+		--parts.volume_control.widget_flash_background,
+		--{
 				{
 					parts.volume_control.volume_label_background_container,
 					{
@@ -386,14 +464,45 @@ local function main(args)
 				},
 				forced_height = util.scale(30),
 				layout        = wibox.layout.fixed.vertical,
-			},
-			margins = util.scale(10),
-			widget  = wibox.container.margin,
-		},
-		layout = wibox.layout.stack,
+		--},
+		--layout = wibox.layout.stack,
 	}
 
-	parts.volume_control.widget = widget_wrapper(parts.volume_control.widget_flash, {
+	local function space_widgets(widgets)
+		local composed = wibox.widget {
+			layout = wibox.layout.fixed.vertical,
+		}
+
+		local first = true
+		for i, widget in ipairs(widgets) do
+			if first then
+				first = false
+				table.insert(composed.children, widget)
+			else
+				table.insert(composed.children, wibox.widget {
+					orientation = "horizontal",
+					forced_height = util.scale(10),
+					color = gears.color.transparent,
+					widget = wibox.widget.separator,
+				})
+				table.insert(composed.children, widget)
+			end
+		end
+
+		composed:emit_signal("widget::layout_changed")
+		composed:emit_signal("widget::redraw_needed")
+
+		return composed
+	end
+
+	parts.volume_control.widget = widget_wrapper(wibox.widget {
+		space_widgets {
+			parts.volume_control.widget_flash,
+			parts.brightness_control.widget,
+		},
+		margins = util.scale(10),
+		widget  = wibox.container.margin,
+	}, {
 		inner_margin = 0,
 	})
 
