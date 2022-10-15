@@ -1,9 +1,13 @@
-local g = {
-	os = os,
-	io = io,
-	require = require,
-	setmetatable = setmetatable,
-}
+local io = io
+local os = os
+local error = error
+local tostring = tostring
+local require = require
+local math = math
+local next = next
+local type = type
+local pairs = pairs
+local ipairs = ipairs
 
 local capi = {
 	---@type screen
@@ -13,23 +17,25 @@ local capi = {
 	awesome = awesome,
 }
 
-local awful     = g.require("awful") -- -@type awful
-local wibox     = g.require("wibox") ---@type wibox
-local gears     = g.require("gears") -- -@type gears
-local naughty   = g.require("naughty") -- -@type naughty
-local beautiful = g.require("beautiful") -- -@type beautiful
+local awful     = require("awful") -- -@type awful
+local wibox     = require("wibox") ---@type wibox
+local gears     = require("gears") -- -@type gears
+local naughty   = require("naughty") -- -@type naughty
+local beautiful = require("beautiful") -- -@type beautiful
 
-wibox.layout.overflow = g.require("wibox_layout_overflow")
+wibox.layout.overflow = require("wibox_layout_overflow")
 
-local lfs = g.require("lfs")
-local lgi = g.require("lgi")
+local lfs = require("lfs")
+local lgi = require("lgi")
 local glib = lgi.GLib
 
-local util = g.require("desktop_icons.util")
-local savestate = g.require("desktop_icons.savestate")
+local util = require("desktop_icons._private.util")
+local savestate = require("desktop_icons._private.savestate")
 
 --[[
 	TODO list:
+	* Fix a bug where, on my laptop, I need to perform at least 2 drags for the state to
+		actually be saved to disk
 	* Allow for file drag-and-drop (requires the Freedesktop XDND API to be available first)
 	* Documentation and cleanup...
 --]]
@@ -64,7 +70,7 @@ local state = {
 	saved_screens     = {},
 }
 
-local index_manager = g.require("desktop_icons.index_manager")
+local index_manager = require("desktop_icons._private.index_manager")
 index_manager(state)
 
 function state.save_layout()
@@ -91,7 +97,7 @@ local desktop_dir_path = util.get_desktop_dir()
 ---@diagnostic disable-next-line: undefined-global
 local terminal = terminal or "xterm"
 
-local generators = g.require("desktop_icons.generators")
+local generators = require("desktop_icons._private.generators")
 
 local screens_with_desktops = {}
 

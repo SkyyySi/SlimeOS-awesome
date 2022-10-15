@@ -1,21 +1,25 @@
 --- DO NOT LOAD THIS MODULE!!!
 --- It is intended for internal use ONLY!
 
-local g = {
-	os = os,
-	io = io,
-	error = error,
-	require = require,
-}
+local io = io
+local os = os
+local error = error
+local tostring = tostring
+local require = require
+local math = math
+local next = next
+local type = type
+local pairs = pairs
+local ipairs = ipairs
 
-local util = g.require("desktop_icons.util")
+local util = require("desktop_icons._private.util")
 
 local savestate = {}
 
 savestate.env = {}
 
-savestate.env.home_dir  = g.os.getenv("HOME")
-savestate.env.cache_dir = g.os.getenv("XDG_CACHE_HOME") or savestate.env.home_dir.."/.cache"
+savestate.env.home_dir  = os.getenv("HOME")
+savestate.env.cache_dir = os.getenv("XDG_CACHE_HOME") or savestate.env.home_dir.."/.cache"
 savestate.store_dir = savestate.env.cache_dir.."/awesome"
 savestate.store_path = savestate.store_dir.."/desktop_icon_state.lua"
 
@@ -25,7 +29,7 @@ savestate.store_path = savestate.store_dir.."/desktop_icon_state.lua"
 function savestate.read_file_content(path, callback)
 	path = path or savestate.store_path
 
-	local file,err = g.io.open(path, "w")
+	local file,err = io.open(path, "w")
 	local content = ""
 
 	if file then
@@ -55,7 +59,7 @@ end
 function savestate.write_file_content(path, content, callback)
 	path = path or savestate.store_path
 
-	local file,err = g.io.open(path, "w")
+	local file,err = io.open(path, "w")
 
 	if file then
 		file:write(content)

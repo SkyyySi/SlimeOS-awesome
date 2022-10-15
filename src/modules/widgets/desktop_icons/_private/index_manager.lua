@@ -4,21 +4,24 @@
 --- This mode collects the layout state of each desktop before committing
 --- it into a file
 
+local io = io
+local os = os
+local error = error
+local tostring = tostring
+local require = require
+local math = math
+local next = next
+local type = type
+local pairs = pairs
+local ipairs = ipairs
+
 local capi = {
 	---@type screen
 	screen = screen,
 	awesome = awesome,
 }
 
-local g = {
-	pairs = pairs,
-	table = table,
-	tostring = tostring,
-	setmetatable = setmetatable,
-	require = require,
-}
-
-local savestate = g.require("desktop_icons.savestate")
+local savestate = require("desktop_icons._private.savestate")
 
 local mt = {}
 
@@ -45,12 +48,12 @@ function mt:has_index(index)
 end
 
 function mt:clear()
-	for k, v in g.pairs(self) do
+	for k, v in pairs(self) do
 		self[k] = nil
 	end
 end
 
-mt.insert = g.table.insert
+mt.insert = table.insert
 
 function mt:__tostring()
 	local outs = ""

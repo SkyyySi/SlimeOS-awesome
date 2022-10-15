@@ -5,6 +5,17 @@ pcall(require, "luarocks.loader") -- Enable LuaRocks package manager support
 local error_handling = require("modules.lib.error_handling")
 error_handling {}
 
+local io = io
+local os = os
+local error = error
+local tostring = tostring
+local require = require
+local math = math
+local next = next
+local type = type
+local pairs = pairs
+local ipairs = ipairs
+
 -- Standard awesome libraries
 local gears     = require("gears")
 local awful     = require("awful")
@@ -13,6 +24,9 @@ local beautiful = require("beautiful") -- Theme handling library
 local naughty   = require("naughty") -- Notification library
 local ruled     = require("ruled") -- Declarative object management
 local menubar   = require("menubar")
+
+---@type client
+local client = client
 
 --- Print a message using naughty.notification
 ---
@@ -101,8 +115,9 @@ spawn_once { "picom",--[[ "--experimental-backends",]] "--config", globals.confi
 spawn_once { "pasystray" }
 spawn_once { "kdeconnect-indicator" }
 spawn_once { "flameshot" }
-spawn_once { "lxqt-session" }
-spawn_once { os.getenv("HOME").."/.screenlayout/layout.sh" }
+--spawn_once { "gnome-flashback" }
+--spawn_once { "lxqt-session" }
+--spawn_once { os.getenv("HOME").."/.screenlayout/layout.sh" }
 --]]
 
 local media_info = require("modules.widgets.media_info")
@@ -261,8 +276,8 @@ screen.connect_signal("request::desktop_decoration", function(s)
 
 	--[ [
 	s.boxes.desktop_clock = wibox {
-		width   = 200,
-		height  = 100,
+		width   = util.scale(200),
+		height  = util.scale(100),
 		visible = true,
 		below   = true,
 		type    = "desktop",
@@ -274,7 +289,7 @@ screen.connect_signal("request::desktop_decoration", function(s)
 
 	s.boxes.desktop_clock.widget = {
 		{
-			font    = "Source Sans Pro, Bold "..tostring(math.floor(util.scale(24))),
+			font    = "Source Sans Pro, Bold "..tostring(math.floor(util.scale(16))),
 			align   = "center",
 			valign  = "top",
 			format  = "%T",
@@ -282,7 +297,7 @@ screen.connect_signal("request::desktop_decoration", function(s)
 			widget  = wibox.widget.textclock,
 		},
 		{
-			font    = "Source Sans Pro, "..tostring(math.floor(util.scale(16))),
+			font    = "Source Sans Pro, "..tostring(math.floor(util.scale(8))),
 			align   = "center",
 			valign  = "top",
 			format  = "%A, %F",
@@ -486,7 +501,7 @@ screen.connect_signal("request::desktop_decoration", function(s)
 	}
 
 	screen.connect_signal("request::wallpaper", function(s)
-		--[ [
+		--[[
 		-- Wallpaper
 		if beautiful.wallpaper then
 			local wp = beautiful.wallpaper
@@ -509,19 +524,20 @@ screen.connect_signal("request::desktop_decoration", function(s)
 							resize     = true,
 							halign     = "center",
 							valign     = "center",
-							clip_shape = function(cr, w, h) gears.shape.rounded_rect(cr, w, h, util.scale(60)) end,
+							--clip_shape = function(cr, w, h) gears.shape.rounded_rect(cr, w, h, util.scale(60)) end,
 							opacity    = 1,
 							widget     = wibox.widget.imagebox,
 						--},
 						--margins = margin,
 						--widget  = wibox.container.margin,
 					},
-					bg = gears.color {
-						type  = "linear",
-						from  = { 0, 0 },
-						to    = { 0, s.geometry.height },
-						stops = { { 0, "#404480" }, { 1, "#406480" } },
-					},
+					--bg = gears.color {
+					--	type  = "linear",
+					--	from  = { 0, 0 },
+					--	to    = { 0, s.geometry.height },
+					--	stops = { { 0, "#404480" }, { 1, "#406480" } },
+					--},
+					bg = "#9FA8DA",
 					widget = wibox.container.background,
 				}
 			}
@@ -1398,7 +1414,7 @@ end)
 -- end)
 
 _PLASMA_PANEL_OFFSET_X = -1920
-client.connect_signal("manage", function(c)
+client.connect_signal("manage", function(c) ---@param c client._instance
 	if c.class == "Xfce4-panel" and c.type == "dock" then
 		--local sh = c.size_hints
 		--notify(util.table_to_string(sh), 0)

@@ -1,0 +1,149 @@
+---@meta
+
+---@class client
+---@field instanecs fun(): int
+---@field get fun(screen: screen, stacked: bool): client._instance[]
+---@field disconnect_signal fun(name: str, func: fun(...))
+---@field emit_signal fun(name: str, func: fun(...))
+---@field connect_signal fun(name: str, ...)
+
+---@class client._instance._sub.size_hints
+---@field user_position {x: int, y: int}?
+---@field program_position {x: int, y: int}?
+---@field user_size {width: int, height: int}?
+---@field program_size {width: int, height: int}?
+---@field max_width int?
+---@field max_height int?
+---@field min_width int?
+---@field min_height int?
+---@field width_inc int?
+---@field height_inc int?
+---@field win_gravity "north_west"|"north_east"|"south_west"|"south_east"?
+---@field min_aspect_num int?
+---@field min_aspect_den int?
+---@field max_aspect_num int?
+---@field max_aspect_den int?
+---@field base_width int?
+---@field base_hegith int?
+
+---@class client._instance._sub.motify_wm_hints
+---@field functions.all bool
+---@field functions.resize bool
+---@field functions.move bool
+---@field functions.minimize bool
+---@field functions.maximize bool
+---@field functions.close bool
+---@field decorations.all bool
+---@field decorations.border bool
+---@field decorations.resizeh bool
+---@field decorations.title bool
+---@field decorations.menu bool
+---@field decorations.minimize bool
+---@field decorations.maximize bool
+---@field input_mode "modeless"|"primary_application_modal"|"system_modal"|" full_application_modal"|"unknown"
+
+---@class client._instance._sub.geometry
+---@field x int
+---@field y int
+---@field width int
+---@field height int
+
+---@class client._instance._sub.activate
+---@field context str?
+---@field raise bool
+---@field force bool
+---@field switch_to_tags bool
+---@field switch_to_tag bool
+---@field action bool
+---@field toggle_minimization bool
+
+---@class client._instance
+---@field window int
+---@field name str
+---@field skip_taskbar bool
+---@field type str
+---@field class str
+---@field instance str
+---@field pid int
+---@field role str
+---@field machine str
+---@field icon_name str
+---@field icon image
+---@field icon_sizes {[1]: int, [2]: int}[] [1] = height, [2] = width
+---@field screen screen
+---@field hidden bool
+---@field minimized bool
+---@field size_hints_honor bool
+---@field border_width int?
+---@field border_color color?
+---@field urgent bool
+---@field content raw_surface
+---@field opacity num
+---@field ontop bool
+---@field above bool
+---@field below bool
+---@field fullscreen bool
+---@field maximized bool
+---@field maximized_horizontal bool
+---@field maximized_vertical bool
+---@field transient_for client?
+---@field group_window int
+---@field leader_window int
+---@field size_hints client._instance._sub.size_hints?
+---@field motify_wm_hints client._instance._sub.motify_wm_hints
+---@field modal bool
+---@field focusable bool
+---@field shape_bounding image
+---@field shape_clip image
+---@field shape_input image
+---@field client_shape_bounding image
+---@field client_shape_clip image
+---@field statup_id str
+---@field valid bool
+---@field first_tag tag?
+---@field buttons buttons
+---@field keys table
+---@field marked bool
+---@field is_fixed bool
+---@field immobilized_horizontal bool
+---@field immobilized_vertical bool
+---@field floating bool
+---@field x int
+---@field y int
+---@field width int
+---@field height int
+---@field dockable bool
+---@field request_no_titlebars bool
+---@field shape shape
+---@field active bool
+---@field struts fun(self: client._instance, struts: screen._sub.struts)
+---@field isvisible fun(self: client._instance): bool
+---@field kill fun(self: client._instance)
+---@field swap fun(self: client._instance, c: client._instance)
+---@field tags fun(self: client._instance, tags_table?: tag[]): tag[]?
+---@field raise fun(self: client._instance)
+---@field lower fun(self: client._instance)
+---@field unmanage fun(self: client._instance)
+---@field geometry fun(self: client._instance, geo?: client._instance._sub.geometry): client._instance._sub.geometry
+---@field apply_size_hints fun(self: client._instance, width: int, height: int): int, int
+---@field get_icon fun(self: client._instance, index: int): cairo.surface
+---@field jump_to fun(self: client._instance, merge: bool|function)
+---@field append_keybinding fun(self: client._instance, key: awful.key)
+---@field remove_keybinding fun(self: client._instance, key: awful.key)
+---@field append_mousebinding fun(self: client._instance, button: awful.button)
+---@field remove_mousebinding fun(self: client._instance, button: awful.button)
+---@field to_primary_section fun(self: client._instance)
+---@field to_secondary_section fun(self: client._instance)
+---@field relative_move fun(self: client._instance, x: int, y: int, w: int, h: int)
+---@field move_to_tag fun(self: client._instance, target: tag)
+---@field toggle_tag fun(self: client._instance, target: tag)
+---@field move_to_screen fun(self: client._instance, s: screen)
+---@field to_selected_tags fun(self: client._instance)
+---@field get_transient_for_matching fun(self: client._instance): client._instance?
+---@field is_transient_for fun(self: client._instance, c2: client._instance): client._instance?
+---@field activate fun(self: client._instance, args: table)
+---@field grant fun(self: client._instance)
+---@field deny fun(self: client._instance)
+---@field emit_signal fun(self: client._instance)
+---@field connect_signal fun(self: client._instance)
+---@field weak_connect_signal fun(self: client._instance)

@@ -1,24 +1,22 @@
 --- DO NOT LOAD THIS MODULE!!!
 --- It is intended for internal use ONLY!
 
-local g = {
-	io = io,
-	os = os,
-	error = error,
-	tostring = tostring,
-	require = require,
-	math = math,
-	next = next,
-	type = type,
-	pairs = pairs,
-	ipairs = ipairs,
-}
+local io = io
+local os = os
+local error = error
+local tostring = tostring
+local require = require
+local math = math
+local next = next
+local type = type
+local pairs = pairs
+local ipairs = ipairs
 
-local awful = g.require("awful")
-local gears = g.require("gears")
-local xresources = g.require("beautiful.xresources")
+local awful = require("awful")
+local gears = require("gears")
+local xresources = require("beautiful.xresources")
 
-local lgi = g.require("lgi")
+local lgi = require("lgi")
 local glib = lgi.GLib
 
 local util = {}
@@ -34,7 +32,7 @@ function util.default(value, ...)
 		return value
 	end
 
-	for _, v in g.pairs {...} do
+	for _, v in pairs {...} do
 		if v ~= nil then
 			return v
 		end
@@ -59,7 +57,7 @@ end
 ---@param path string
 ---@return boolean exists
 function util.file_exists(path)
-	local f= g.io.open(path, "r")
+	local f= io.open(path, "r")
 
 	if f ~= nil then
 		g.io.close(f)
@@ -104,7 +102,7 @@ function util.string_multiply(str, n)
 	end
 
 	local outs = ""
-	local floor = g.math.floor(n)
+	local floor = math.floor(n)
 	local point = n - floor
 
 	for i = 1, n do
@@ -113,7 +111,7 @@ function util.string_multiply(str, n)
 
 	if point > 0 then
 		local len = #str * floor
-		outs = outs..str:sub(1, g.math.floor(len))
+		outs = outs..str:sub(1, math.floor(len))
 	end
 
 	return outs
@@ -124,7 +122,7 @@ end
 ---@param depth? integer
 ---@return string
 function util.table_to_string(t, indent, depth)
-	if g.type(t) ~= "table" then
+	if type(t) ~= "table" then
 		return ""
 	end
 
@@ -133,7 +131,7 @@ function util.table_to_string(t, indent, depth)
 	local bracket_indent = util.string_multiply(indent, depth)
 	local full_indent = bracket_indent..indent
 
-	if g.next(t) == nil then
+	if next(t) == nil then
 		if depth > 0 then
 			return "{},"
 		else
@@ -143,9 +141,9 @@ function util.table_to_string(t, indent, depth)
 
 	local outs = "{\n"
 
-	for k, v in g.pairs(t) do
-		local tv = g.type(v)
-		local tk = g.type(k)
+	for k, v in pairs(t) do
+		local tv = type(v)
+		local tk = type(k)
 
 		if tk == "string" then
 			k = '"'..util.string_escape(k)..'"'
@@ -201,12 +199,12 @@ do
 		end
 
 		local env = {}
-		env.home_dir = g.os.getenv("HOME")
-		env.xdg_desktop_dir = g.os.getenv("XDG_DESKTOP_DIR")
+		env.home_dir = os.getenv("HOME")
+		env.xdg_desktop_dir = os.getenv("XDG_DESKTOP_DIR")
 
-		local desktop_dir = g.os.getenv("XDG_DESKTOP_DIR") or env.home_dir.."/Desktop"
+		local desktop_dir = os.getenv("XDG_DESKTOP_DIR") or env.home_dir.."/Desktop"
 
-		local tmp = g.io.popen("xdg-user-dir DESKTOP", "r")
+		local tmp = io.popen("xdg-user-dir DESKTOP", "r")
 
 		if tmp then
 			local tmp_read = tmp:read("*a")
@@ -304,7 +302,7 @@ function util.file_can_be_cairo_surface(path)
 		return false
 	end
 
-	for _, ext in g.ipairs { "png", "jpg", "bmp", "svg", "ppm" } do
+	for _, ext in ipairs { "png", "jpg", "bmp", "svg", "ppm" } do
 		if f_ext == ext then
 			return true
 		end

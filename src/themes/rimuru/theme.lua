@@ -106,7 +106,7 @@ t.color.light_mode.__index = t.color.light_mode
 t.color.current = t.color.dark_mode
 setmetatable(t.color, t.color.current)
 
-t.font_size = tostring(math.floor(util.scale(12))) ---@type string
+t.font_size = tostring(math.floor(util.scale(6))) ---@type string
 t.font = "Roboto, Regular "..t.font_size
 t.monospace_font = "MesloLGS NF, Bold "..t.font_size
 

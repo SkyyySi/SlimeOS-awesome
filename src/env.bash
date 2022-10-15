@@ -1,0 +1,4 @@
+export QT_QPA_PLATFORMTHEME=qt5ct
+export GTK_USE_PORTAL=1
+export XDG_DESKTOP_PORTAL=1
+export AWESOME_DEBUG=false

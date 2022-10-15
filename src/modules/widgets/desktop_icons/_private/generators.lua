@@ -1,14 +1,16 @@
 --- DO NOT LOAD THIS MODULE!!!
 --- It is intended for internal use ONLY!
 
-local g = {
-	os = os,
-	io = io,
-	require = require,
-	pairs = pairs,
-	ipairs = ipairs,
-	setmetatable = setmetatable,
-}
+local io = io
+local os = os
+local error = error
+local tostring = tostring
+local require = require
+local math = math
+local next = next
+local type = type
+local pairs = pairs
+local ipairs = ipairs
 
 local capi = {
 	---@type screen
@@ -18,20 +20,20 @@ local capi = {
 	awesome = awesome,
 }
 
-local awful = g.require("awful")
-local wibox = g.require("wibox")
-local gears = g.require("gears")
-local beautiful = g.require("beautiful")
-local menubar_utils = g.require("menubar").utils
-wibox.layout.overflow = g.require("wibox_layout_overflow")
+local awful = require("awful")
+local wibox = require("wibox")
+local gears = require("gears")
+local beautiful = require("beautiful")
+local menubar_utils = require("menubar").utils
+wibox.layout.overflow = require("wibox_layout_overflow")
 
-local lgi = g.require("lgi")
+local lgi = require("lgi")
 local Gio = lgi.Gio
 
-local util = g.require("desktop_icons.util")
+local util = require("desktop_icons._private.util")
 
 -- TODO: Get rid of this
-local launcher_utils = g.require("modules.widgets.rasti_launcher.utils")
+local launcher_utils = require("modules.widgets.rasti_launcher.utils")
 
 local desktop_dir = util.get_desktop_dir()
 
@@ -46,22 +48,29 @@ local generators = { builtin = {}, file = {} }
 ---@return desktop_icons.peeker
 function generators.create_dir_peeker(args)
 	args = util.default(args, {})
+	args.file = args.file
+	args.state = args.state
+	args.geo = args.geo
+	args.screen = args.screen
 	args.style = util.default(args.style, {})
-	args.style.orientation = util.default(args.style.orientation--[[ , "vertical" ]], "horizontal")
+	args.style.orientation = util.default(args.style.orientation, "horizontal")
 	args.style.container = util.default(args.style.container, {})
 	args.style.container.title = util.default(args.style.container, {})
 	args.style.container.title.font  = util.default(args.style.container.title.font,  "Sans, Bold 12")
 	args.style.container.title.align = util.default(args.style.container.title.align, "center")
 	args.style.container.geometry = util.default(args.style.container.geometry, {})
-	-- The width and height are set automatically based on the shortcut amount, shortcut geometry and wanted line count
-	--args.style.container.geometry.width  = util.default(args.style.container.geometry.width,  util.scale(500))
-	--args.style.container.geometry.height = util.default(args.style.container.geometry.height, util.scale(320))
+	-- Instead of directly setting the width and height, we calculate them from the other provided sizes.
+	-- They can, however, be overwritten using `forced_width` / `forced_height`.
+	args.style.container.geometry.foced_width  = util.default(args.style.container.geometry.forced_width)
+	args.style.container.geometry.foced_height = util.default(args.style.container.geometry.forced_height)
 	args.style.container.geometry.line_count = util.default(args.style.container.geometry.line_count, 3)
 	args.style.container.geometry.max_length = util.default(args.style.container.geometry.max_length, util.scale(500)) -- direction is orientation dependent
 	args.style.container.geometry.min_cols_size = util.default(args.style.container.geometry.min_cols_size, util.scale(50))
 	args.style.container.geometry.min_rows_size = util.default(args.style.container.geometry.min_rows_size, util.scale(50))
 	args.style.container.geometry.grid_spacing = util.default(args.style.container.geometry.grid_spacing, util.scale(10))
 	args.style.container.shape = util.default(args.style.container.shape, function(cr, w, h) gears.shape.rounded_rect(cr, w, h, 20) end)
+	args.style.container.shape_border_width = util.default(args.style.container.shape_border_width, 0)
+	args.style.container.shape_border_color = util.default(args.style.container.shape_border_color, "#FFFFFF")
 	args.style.container.bg = util.default(args.style.container.bg, beautiful.bg_normal, "#202020")
 	args.style.container.fg = util.default(args.style.container.fg, beautiful.fg_normal, "#E0E0E0")
 	args.style.shortcut = util.default(args.style.shortcut, {})
@@ -78,6 +87,12 @@ function generators.create_dir_peeker(args)
 	local peeker = wibox {
 		--width = args.style.container.geometry.width,
 		--height = args.style.container.geometry.height,
+		width = args.style.container.geometry.forced_width,
+		height = args.style.container.geometry.forced_height,
+		bg = gears.color.transparent,
+		shape = args.style.container.shape,
+		shape_border_width = args.style.container.shape_border_width,
+		shape_border_color = args.style.container.shape_border_color,
 		visible = false,
 		ontop = false,
 	}
@@ -105,23 +120,41 @@ function generators.create_dir_peeker(args)
 
 	peeker.widget = wibox.widget {
 		{
-			grid,
-			--{
-			--	text = "Realize into history car. Smile for act trial. Defense tax new people avoid over.\nNumber mean direction discussion the present past. Set sport current issue be.\nDevelopment see much situation floor. Hospital course yourself forward hand even. Onto improve hair me success card.\nSport your capital clearly his often growth. Hold arrive ground why war almost. Skill least listen.\nInstitution thank rate fish while make. Not grow we war these thing. Yet prevent near impact bag degree.\nTree medical us program. Drive available decade factor.\nToday know public enter seat. Give standard edge most save loss.\nWhy capital move. Bill gas capital think.\nDark turn significant shake low. Dream toward weight real important animal. Himself day enter our spring.\nExample show site coach back option modern. Difficult data brother hit maybe task. Final accept memory market none develop government.\nYes foreign each son modern.\nCare parent beautiful single start side. Open nothing have individual usually.\nParent white until pretty citizen main notice morning. Senior whether stand music occur control.\nKid media class both although whether including. Day ahead eye well plant type.\nClaim keep live body. President amount shoulder example scene information. Performance person message per to assume.\nNote week social technology by keep. Suffer decision stuff.\nArea talk open protect TV first life lose. Together pressure let.\nRight concern message simple. Response information road health walk. Building like end specific impact huge again. Forward edge nearly despite stand toward.\nKitchen music very think central when. Head after current pull.\nExperience it yet news figure. Support film war design line turn.\nFine hospital peace shoulder them beyond cup. Public age begin artist operation.\nArrive machine public heavy glass outside language.\nPublic enter professor dark structure. Stay action role people play leave.\nEstablish industry month Congress space drive. And suffer actually future pretty positive turn. Tend they term population hair.\nTreat bed entire.\nBig now remember plant character rock. Cold sister purpose. Team different debate future be strong term. Commercial book strategy factor.\nUnder resource seek election. Know away consumer minute company name.\nBag identify win serve again. House nor analysis production.\nRate space run across. Put current reach.\nInformation myself onto rock rock hospital way. Bad month artist court other from read account. Debate interesting country stand.\nBody just increase site. Make fast most security.\nAlmost rather tonight city region. Service face catch know do million PM. Soldier interesting experience red month student.\nSmile Democrat Republican social form. Subject sport sing wind success. Child east late since people husband draw.\nEat drive visit growth include rather experience.\nRelationship spring ball national free several. Area see factor product. Music hear hot enjoy expert market.\nSpeak step goal. Child thank image catch sound security record election. Series south other election minute international.\nPeople between sea community. Amount kitchen reveal responsibility practice. Company smile report expect blue line my.\nHotel lay maintain condition old. Give score answer every.\nFive prove seat in. Tree base new sell. Hour decide candidate stage method.\nRock enough official computer prove main. Seat adult worry citizen girl. Get program property decade protect become house may.\nWrong surface last ever present. Experience smile often. Site course probably at.\nWorker rule reach enter side wait. Where deep yet road.\nForce scene out spring people way.\nAble list true friend reduce parent. Green our area message eat. Practice art point nearly.\nGeneration late operation though report. Statement environment door. Read generation whether song defense.\nLeft adult sense born.\nDetail far down line practice natural. End partner author board. Professor stand later figure themselves red.\nDecade mission professional line increase at live. Month opportunity no nice green improve. Popular politics president writer require bring number for.\nSeries lawyer every they rise. Commercial lay simple present. Service now benefit generation discussion age for down.\nPeople approach court standard number western college detail.\nWhether million camera. Describe price production even TV quality local citizen. Scene arrive beat consider value partner continue.\nGeneral collection first argue. Cell then type move defense. Water take boy.\nData name together sound leader unit. Room usually total source entire board.\nAmong network forward reveal instead cost fire. Almost story choice customer child do.\nData group eight matter realize arrive hard usually. Down authority herself natural. Size rate carry fall likely significant concern.\nSuggest however clear sound federal necessary future. General here structure near use.\nCarry chair together travel marriage simple. Behavior out edge money yourself.\nIssue edge best simply collection street. Song woman break question even week.\nFilm available respond source. Subject short without collection.\nManager voice relationship already parent worry. Live these effort position source west.\nJoin none remain read. No city respond notice go it likely. Sound car continue value.\nNational political feeling side image leader. Young traditional rest for stay politics letter. Save idea when such meeting thank. Major street teacher position type any knowledge.\nBaby season way history down every. Find season provide them employee.\nSociety expect shake possible plant. Kid investment ten floor any industry animal little. Piece provide yourself decade against growth plan.\nUnder seem feel sea. Voice home cost seem. Budget pick suddenly detail.\nCommon street him sound college possible. Girl direction more list.\nClaim low develop model. Project more understand not list.\nDifficult but likely as interesting. Thank subject situation quickly present way. Trouble focus including maintain audience agent identify.\nAssume wrong after shoulder. Once put deal than work another. Population itself late section common.\nBig entire hour beat start interesting. Anything record keep upon discussion billion. Focus deep health entire particularly check.\nOption the miss situation artist about. Tree available class star professor sit. Serious do light friend wall store. Himself open picture win cut year religious.\nDetermine detail pattern high foreign though. Grow less hospital industry. Support government role tree enjoy tough establish.\nSave majority fast gun four local. Point we you long nation middle. Everybody week carry technology feeling.\nVisit smile mean suggest billion. Image must book system among inside read decide. However upon only especially card commercial.\nNature magazine want of next forget. Head wrong wall agent heavy visit conference cell.\nPoor experience something southern magazine president. Movie system program summer those take serious. Goal cost may who machine music. Like strategy answer again its despite according.\nSecurity leave major care method drug region. Scene late reflect hour cut another Democrat these.\nPresent near happen. Rather ability probably media state with.\nHope near network adult. However key resource mention seven.\nSister rich stage attention it someone seek. Later impact energy method approach top. Serve discussion study center anyone subject candidate six.\nNever operation now probably.\nPicture industry thing public city task. Off weight its maintain story. Necessary officer top already me there.\nDemocrat possible admit big office picture. Away happen cause different explain wait lawyer address. How save best build tough learn.\nHave others effect evening assume choose. Keep sing amount forward challenge wear film. Local Mr couple recognize sing set.\nWould purpose thus southern money. Box various structure. Reveal crime pretty play because sign.\nOut write because information sell relationship. Bit each big woman staff suggest pay cold. Look week move attention yet rise respond.\nRule save mean. Official boy expert some. Star ground thus then girl. Play security reveal far.\nHave night trade protect right contain. Development player worker expert.\nBed direction once standard. Common able technology memory lawyer.\nFather surface over learn thus plan civil. Under crime design something. Whatever able employee still.\nSimilar they clear product.\nHer run individual enough federal woman. Best discuss candidate perform exist minute.\nLine often treat everybody like affect. Some soldier know student staff left prove.\nOrder old follow. Voice huge often wind from everything. Eye read subject culture could usually then.\nInterview option war like very police down carry. National property reflect help live per maintain.\nRule democratic interesting trade member responsibility sense. Clear hotel final city least. Explain simply entire green eight.\nMost dinner modern many wrong whatever. Of visit be from cover. My man pretty kid raise.\nManagement check success marriage deal business. Voice serious probably example message subject. Eight lot will form machine.\nArticle likely open city officer war.\nFear fish shake do hand feeling. Why dark avoid teacher. Every rest choose too apply job. Board standard letter sea.\nEven model such hospital policy out behind. Suddenly fund sell traditional manager player.\nPm poor all just.\nAbility focus TV somebody increase. So consider where say.\nOwn hotel which entire expert little. Where voice spring she sit final. Clear performance mention matter.\nSkill issue rich eat already field level. Decide on effect safe leg account western. Agreement thing team conference.\nMember stage out dog visit. Agency never try low environment peace. Officer continue enjoy four.\nForget game blood radio. Agreement mean station grow instead kid. Soldier action through behind avoid lot. Church this fact cause seek national.\nStuff one population son. Tree century ok war.",
-			--	widget = wibox.widget.textbox,
-			--},
-			margins = util.scale(5),
-			widget = wibox.container.margin,
+			{
+				font = args.style.container.title.font,
+				align = args.style.container.title.align,
+				markup = args.file,
+				widget = wibox.widget.textbox,
+			},
+			{
+				{
+					grid,
+					margins = util.scale(5),
+					widget = wibox.container.margin,
+				},
+				layout = wibox.layout.overflow[args.style.orientation],
+			},
+			layout = wibox.layout.align.vertical,
 		},
-		layout = wibox.layout.overflow[args.style.orientation],
+		bg = args.style.container.bg,
+		fg = args.style.container.fg,
+		shape = args.style.container.shape,
+		shape_border_width = args.style.container.shape_border_width,
+		shape_border_color = args.style.container.shape_border_color,
+		widget = wibox.container.background,
 	}
 
 	function peeker:update_geometry()
 		local lc = args.style.container.geometry.line_count
 		--self.forced_num_rows = self.forced_num_rows or 1
+		-- TODO: Skip calculations if forced_width and/or forced_height are provided.
+		if args.style.container.geometry.foced_height then
+			self.width = args.style.container.geometry.foced_height
+		end
+
 		if args.style.orientation == "horizontal" then
-			self.width = args.style.container.geometry.max_length
-			self.height = args.style.shortcut.geometry.height * lc + args.style.container.geometry.grid_spacing * (lc + 1)
+			self.width  = args.style.container.geometry.foced_width  or args.style.container.geometry.max_length
+			self.height = args.style.container.geometry.foced_height or args.style.shortcut.geometry.height * lc + args.style.container.geometry.grid_spacing * (lc + 1)
 
 			do
 				local height = args.style.shortcut.geometry.height
@@ -133,18 +166,18 @@ function generators.create_dir_peeker(args)
 				grid.forced_num_rows = i
 
 				if #grid.children < i then --- The widget is smaller than it needs to be - shrink it
-					self.height = args.style.shortcut.geometry.height * #grid.children + args.style.container.geometry.grid_spacing * (#grid.children + 1)
+					self.height = args.style.container.geometry.foced_height or args.style.shortcut.geometry.height * #grid.children + args.style.container.geometry.grid_spacing * (#grid.children + 1)
 
-					local width = args.style.shortcut.geometry.width * lc + args.style.container.geometry.grid_spacing * (lc + 1)
+					--local width = args.style.shortcut.geometry.width * lc + args.style.container.geometry.grid_spacing * (lc + 1)
 					local needed_width = args.style.shortcut.geometry.width * #grid.children + args.style.container.geometry.grid_spacing * (#grid.children + 1)
 					if needed_width < args.style.container.geometry.max_length then
-						self.width = needed_width
+						self.width = args.style.container.geometry.foced_width or needed_width
 					end
 				end
 			end
 		else -- vertical
-			self.width = args.style.shortcut.geometry.width * lc + args.style.container.geometry.grid_spacing * (lc + 1)
-			self.height = args.style.container.geometry.max_length
+			self.width  = args.style.container.geometry.foced_width  or args.style.shortcut.geometry.width * lc + args.style.container.geometry.grid_spacing * (lc + 1)
+			self.height = args.style.container.geometry.foced_height or args.style.container.geometry.max_length
 
 			do
 				local width = args.style.shortcut.geometry.width
@@ -156,12 +189,12 @@ function generators.create_dir_peeker(args)
 				grid.forced_num_cols = i
 
 				if #grid.children < i then --- The widget is smaller than it needs to be - shrink it
-					self.width = args.style.shortcut.geometry.width * #grid.children + args.style.container.geometry.grid_spacing * (#grid.children + 1)
+					self.width = args.style.container.geometry.foced_width or args.style.shortcut.geometry.width * #grid.children + args.style.container.geometry.grid_spacing * (#grid.children + 1)
 
-					local height = args.style.shortcut.geometry.height * lc + args.style.container.geometry.grid_spacing * (lc + 1)
+					--local height = args.style.shortcut.geometry.height * lc + args.style.container.geometry.grid_spacing * (lc + 1)
 					local needed_height = args.style.shortcut.geometry.height * #grid.children + args.style.container.geometry.grid_spacing * (#grid.children + 1)
 					if needed_height < args.style.container.geometry.max_length then
-						self.height = needed_height
+						self.height = args.style.container.geometry.foced_height or needed_height
 					end
 				end
 			end
@@ -338,12 +371,14 @@ function generators.create_shortcut_widget(args)
 	}
 
 	if args.type == "directory" and args.is_for_desktop then
-		--widget.peeker = generators.create_dir_peeker(args)
 		widget.peeker = generators.create_dir_peeker({
 			screen = args.screen,
 			geo = args.geo,
 			state = args.state,
 			file = args.id,
+			style = {
+				orientation = "vertical",
+			},
 		})
 	end
 
@@ -615,7 +650,7 @@ function generators.builtin.trash(args)
 		return
 	end
 
-	local trash_path = g.os.getenv("HOME").."/.local/share/Trash/files"
+	local trash_path = os.getenv("HOME").."/.local/share/Trash/files"
 	local trash_path_esc = trash_path:gsub('\'', [['"'"']])
 	local icon_empty, icon_filled = "/usr/share/icons/Papirus-Dark/24x24/places/user-trash.svg", "/usr/share/icons/Papirus-Dark/24x24/places/user-trash-full.svg"
 	local label_empty, label_filled = "Trash", "Trash (filled)"
@@ -721,7 +756,7 @@ function generators.file.desktop(args)
 	local name = desktop_file:get_locale_string("Name")
 
 	local icon_path
-	for _, icon_name in g.ipairs(desktop_file:get_icon():get_names()) do
+	for _, icon_name in ipairs(desktop_file:get_icon():get_names()) do
 		icon_path = menubar_utils.lookup_icon(icon_name) or ("/usr/share/icons/Papirus-Dark/24x24/apps/"..icon_name..".svg")
 		if icon_path ~= nil then
 			break

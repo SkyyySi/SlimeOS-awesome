@@ -1,22 +1,28 @@
 ---@meta
 
----@class screen._geometry
+---@class screen._sub._geometry
 ---@field x int
 ---@field y int
 ---@field width int
 ---@field height int
 
----@class screen._padding
+---@class screen._sub.padding
 ---@field left int|nil
 ---@field right int|nil
 ---@field top int|nil
 ---@field bottom int|nil
 
----@class screen._output
+---@class screen._sub.output
 ---@field mm_width int The screen physical width.
 ---@field mm_height int The screen physical height.
 ---@field name str The output name.
 ---@field viewport_id str The identifier of the viewport this output corresponds to.
+
+---@class screen._sub.struts
+---@field left int?
+---@field right int?
+---@field top int?
+---@field bottom int?
 
 --- # Module: screen
 ---
@@ -43,13 +49,13 @@
 ---@class screen
 ---@operator call: screen Iterate over screens.
 ---@field primary screen The primary screen.
----@field geometry screen._geometry The screen coordinates and dimensions.
+---@field geometry screen._sub._geometry The screen coordinates and dimensions.
 ---@field index int The internal screen number.
----@field workarea screen._geometry The screen workarea.
----@field tiling_area screen._geometry The area where clients can be tiled.
+---@field workarea screen._sub._geometry The screen workarea.
+---@field tiling_area screen._sub._geometry The area where clients can be tiled.
 ---@field content raw_surface Take a screenshot of the physical screen.
----@field padding screen._padding|num The screen padding.
----@field outputs screen._output[] A list of outputs for this screen with their size in mm.
+---@field padding screen._sub.padding|num The screen padding.
+---@field outputs screen._sub.output[] A list of outputs for this screen with their size in mm.
 ---@field clients client[] The list of visible clients for the screen. Minimized and unmanaged clients are not included in this list as they are technically not on the screen.
 ---@field hidden_clients client[] Get the list of clients assigned to the screen but not currently visible.
 ---@field all_clients client[] All clients assigned to the screen.
@@ -136,10 +142,10 @@ function cls:get_next_in_direction(dir) end
 ---@class screen._args.get_bounding_geometry
 ---@field honor_padding bool|nil
 ---@field honor_workarea bool|nil
----@field margins screen._padding|int|nil
+---@field margins screen._sub.padding|int|nil
 ---@field tag tag|nil
 ---@field parent drawable|nil
----@field bounding_rect screen._geometry|nil
+---@field bounding_rect screen._sub._geometry|nil
 
 --- ## Get a placement bounding geometry.
 ---
