@@ -122,8 +122,8 @@ local function refresh_colors(scheme)
 	t.fg_urgent   = scheme.foreground
 	t.fg_minimize = scheme.foreground
 
-	t.useless_gap         = dpi(5)
-	t.border_width        = dpi(2)
+	t.useless_gap         = util.scale(5)
+	t.border_width        = util.scale(2)
 	t.border_color_normal = t.bg_focus
 	t.border_color_active = scheme.accent
 	t.border_color_marked = t.bg_urgent
@@ -148,7 +148,7 @@ local function refresh_colors(scheme)
 	t.titlebar_fg_focus  = scheme.foreground
 
 	-- Generate taglist squares:
-	local taglist_square_size = dpi(4)
+	local taglist_square_size = util.scale(4)
 	t.taglist_squares_sel = theme_assets.taglist_squares_sel(taglist_square_size, t.fg_normal)
 	t.taglist_squares_unsel = theme_assets.taglist_squares_unsel(taglist_square_size, t.fg_normal)
 
@@ -163,8 +163,8 @@ local function refresh_colors(scheme)
 	-- menu_[border_color|border_width]
 	--t.menu_submenu_icon = theme_dir.."submenu.png"
 	t.menu_submenu_icon = "/usr/share/icons/Papirus-Dark/24x24/actions/arrow-right.svg"
-	t.menu_height = dpi(30)
-	t.menu_width  = dpi(250)
+	t.menu_height = util.scale(30)
+	t.menu_width  = util.scale(250)
 
 	-- You can add as many variables as
 	-- you wish and access them by using
