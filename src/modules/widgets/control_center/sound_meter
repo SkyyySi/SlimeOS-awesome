@@ -1,0 +1,7 @@
+#!/usr/bin/env luajit
+local sound_meter = require("sound_meter")
+local buffer_size = 1024 * 8
+
+while true do
+	print(sound_meter.run(buffer_size))
+end

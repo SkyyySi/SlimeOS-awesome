@@ -171,6 +171,7 @@ function dock.gen_fav_widget(args, app)
 		cmd = util.split(cur.Exec)[1]
 	end
 
+	cur.actions_table = cur.actions_table or {}
 	local bound_menu_items = {}
 	for k, v in pairs(cur.actions_table) do
 		if v.Icon then
