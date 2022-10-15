@@ -44,5 +44,6 @@
   "files.associations": {
     "*.rasi": "rasi",
     "functional": "c"
-  }
+},
+"Lua.runtime.version": "LuaJIT"
 }

@@ -3,3 +3,4 @@ local/
 .idea/
 src/env.sh
 .idea
+souei_transparent*.png
