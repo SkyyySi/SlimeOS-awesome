@@ -125,7 +125,7 @@ local media_info = require("modules.widgets.media_info")
 local better_menu = require("modules.widgets.better_menu")
 local global_menu_bar = require("modules.widgets.global_menu_bar")
 local dock = require("modules.widgets.dock")
---local category_launcher = require("modules.widgets.category_launcher")
+local category_launcher = require("modules.widgets.category_launcher")
 local tasklist = require("modules.widgets.tasklist")
 -- }}}
 
@@ -276,7 +276,7 @@ screen.connect_signal("request::desktop_decoration", function(s)
 
 	--[ [
 	s.boxes.desktop_clock = wibox {
-		width   = util.scale(200),
+		width   = util.scale(300),
 		height  = util.scale(100),
 		visible = true,
 		below   = true,
@@ -639,12 +639,12 @@ screen.connect_signal("request::desktop_decoration", function(s)
 	awesome.connect_signal("slimeos::menu_is_ready", function(menu)
 		menu_holder.menus = menus
 
-		-- Create a launcher. Since it is created asynchronously and thus does not
-		-- anything, it doesn't need to be assinged to a variable.
-		--category_launcher {
-		--	screen = s,
-		--	menus  = menus,
-		--}
+		-- Create a launcher. Since it is created asynchronously and thus does not return
+		-- itself, it doesn't need to be assinged to a variable.
+		category_launcher {
+			screen = s,
+			menus  = menus,
+		}
 
 		buttonify {
 			widget = s.widgets.launcher,
@@ -656,7 +656,7 @@ screen.connect_signal("request::desktop_decoration", function(s)
 			button_callback_normal  = function(w, b) arc:fade_to(0.1) end,
 			button_callback_press   = function(w, b) arc:fade_to(0.5) end,
 			button_callback_release = function(w, b)
-				arc:fade_to(0.1)
+				arc:fade_to(0.3)
 				local width  = mouse.current_widget_geometry.width  + beautiful.useless_gap
 				local height = mouse.current_widget_geometry.height + beautiful.useless_gap
 
@@ -667,8 +667,8 @@ screen.connect_signal("request::desktop_decoration", function(s)
 					--	"-yoffset", tostring(-(height)),
 					--	"-show", "drun",
 					--})
-					--awesome.emit_signal("slimeos::toggle_launcher", s)
-					menu.main:toggle()
+					awesome.emit_signal("slimeos::toggle_launcher", s)
+					--menu.main:toggle()
 				elseif b == 2 then
 					menu.settings:toggle()
 				elseif b == 3 then
@@ -680,10 +680,10 @@ screen.connect_signal("request::desktop_decoration", function(s)
 
 	-- Create a textclock widget
 	s.widgets.textclock_clock = wibox.widget {
-		format = "%H:%M",
+		format = "%d.%m.%Y - %H:%M",
 		align = "center",
-		font = "Roboto, Semibold "..beautiful.font_size,
-		forced_width = util.scale(45),
+		font = "Roboto mono, Semibold "..beautiful.font_size,
+		forced_width = util.scale(140),
 		widget = wibox.widget.textclock,
 	}
 
@@ -1470,7 +1470,19 @@ client.connect_signal("property::fullscreen", function(c)
 	if c.fullscreen then
 		c.shape = gears.shape.rectangle
 	else
-		if c.type == "normal" then
+		if c.type == "normal" and not c.maximized then
+			c.shape = function(cr, w, h)
+				gears.shape.rounded_rect(cr, w, h, util.scale(20))
+			end
+		end
+	end
+end)
+
+client.connect_signal("property::maximized", function(c)
+	if c.maximized then
+		c.shape = gears.shape.rectangle
+	else
+		if c.type == "normal" and not c.fullscreen then
 			c.shape = function(cr, w, h)
 				gears.shape.rounded_rect(cr, w, h, util.scale(20))
 			end

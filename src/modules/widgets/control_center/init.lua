@@ -357,10 +357,10 @@ local function main(args)
 	parts.volume_control = {}
 
 	parts.volume_control.icons = {
-		muted  = "🔇",
-		low    = "🔈",
-		medium = "🔉",
-		high   = "🔊"
+		muted  = "",
+		low    = "",
+		medium = "",
+		high   = "",
 	}
 
 	parts.volume_control.volume_slider = wibox.widget {
@@ -578,7 +578,8 @@ local function main(args)
 	}
 
 	parts.stats.audio.label = wibox.widget {
-		text         = "📢",
+		text         = "蓼",
+		font         = "MesloLGS NF, Semibold "..beautiful.font_size,
 		align        = "center",
 		halign       = "center",
 		forced_width = util.scale(28),
@@ -612,6 +613,7 @@ local function main(args)
 
 	parts.stats.cpu.label = wibox.widget {
 		text         = "",
+		font         = "MesloLGS NF, Semibold "..beautiful.font_size,
 		align        = "center",
 		halign       = "center",
 		forced_width = util.scale(28),
@@ -628,6 +630,81 @@ local function main(args)
 		layout = wibox.layout.fixed.horizontal
 	}
 
+	parts.stats.battery = {}
+
+	parts.stats.battery.widget = wibox.widget {
+		{
+			text         = "",
+			font         = "MesloLGS NF, Semibold "..beautiful.font_size,
+			align        = "center",
+			halign       = "center",
+			forced_width = util.scale(28),
+			widget       = wibox.widget.textbox,
+		},
+		{
+			{
+				id               = "battery-graph",
+				min_value        = 0,
+				max_value        = 100,
+				color            = beautiful.color.current.blue,
+				background_color = beautiful.color.current.background,
+				border_color     = beautiful.color.current.background,
+				border_width     = util.scale(2),
+				forced_height    = util.scale(16),
+				shape            = gears.shape.rounded_bar,
+				bar_shape        = gears.shape.rounded_bar,
+				widget           = wibox.widget.progressbar,
+			},
+			{
+				{
+					{
+						id           = "battery-label",
+						text         = "50%",
+						font         = "MesloLGS NF, Semibold "..tostring(tonumber(beautiful.font_size)-2),
+						align        = "right",
+						halign       = "center",
+						forced_width = util.scale(28),
+						widget       = wibox.widget.textbox,
+					},
+					left   = util.scale(4),
+					widget = wibox.container.margin,
+				},
+				layout = wibox.layout.align.horizontal,
+			},
+			layout = wibox.layout.stack,
+		},
+		layout = wibox.layout.fixed.horizontal,
+	}
+
+	do
+		local lgi = require("lgi")
+		local devs = lgi.UPowerGlib.Client():get_devices()
+		local dev = devs[1]
+		for _, device in pairs(devs) do
+			if device:get_object_path():match("/battery_BAT[0-9]+$") then
+				print(device:to_text())
+				dev = device
+				break
+			end
+		end
+
+		local function update_battery_juice()
+			local current_juice = 100 * (dev["energy"] / dev["energy-full"])
+
+			for _, w in ipairs(parts.stats.battery.widget:get_children_by_id("battery-label")) do
+				w.text = tostring(math.floor(current_juice)).."%"
+			end
+
+			for _, w in ipairs(parts.stats.battery.widget:get_children_by_id("battery-graph")) do
+				w.value = current_juice
+			end
+		end
+
+		update_battery_juice()
+
+		dev.on_notify = update_battery_juice
+	end
+
 	parts.stats.separator = wibox.widget {
 		thickness   = util.scale(4),
 		forced_height = util.scale(4),
@@ -640,6 +717,8 @@ local function main(args)
 		parts.stats.audio.widget,
 		parts.stats.separator,
 		parts.stats.cpu.widget,
+		parts.stats.separator,
+		parts.stats.battery.widget,
 		layout = wibox.layout.fixed.vertical,
 	}, {
 		--inner_margin = 0;

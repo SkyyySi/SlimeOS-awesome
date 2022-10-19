@@ -10,6 +10,12 @@
 -- @supermodule wibox.layout.fixed
 ---------------------------------------------------------------------------
 
+local math = math
+local require = require
+local pairs = pairs
+local ipairs = ipairs
+
+local wibox = require("wibox")
 local base = require('wibox.widget.base')
 local fixed = require('wibox.layout.fixed')
 local separator = require('wibox.widget.separator')
@@ -490,13 +496,13 @@ local function new(dir, ...)
     ret._private.scroll_factor = 0
 
     -- Apply defaults. Bypass setters to avoid signals.
-    ret._private.step = 10
+    ret._private.step = 100
     ret._private.fill_space = true
     ret._private.scrollbar_width = 5
     ret._private.scrollbar_enabled = true
     ret._private.scrollbar_position = dir == "vertical" and "right" or "bottom"
 
-    local scrollbar_widget = separator({ shape = gshape.rectangle })
+    local scrollbar_widget = separator({ shape = gshape.rounded_bar })
     apply_scrollbar_mouse_signal(ret, scrollbar_widget)
     ret._private.scrollbar_widget = scrollbar_widget
 

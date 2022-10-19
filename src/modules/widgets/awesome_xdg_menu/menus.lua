@@ -41,6 +41,7 @@ menu_parts["Entwicklung"] = {
 	{"Qt QDBusViewer ", "qdbusviewer", "/usr/share//icons/hicolor/32x32/apps/qdbusviewer.png" },
 	{"UserFeedback-Konsole", "UserFeedbackConsole"},
 	{"VSCodium", "/opt/vscodium-bin/bin/codium --no-sandbox --unity-launch ", "/usr/share/pixmaps/vscodium.png" },
+	{"ipython", "xterm -e ipython", "/usr/share/pixmaps/ipython.png" },
 }
 
 menu_parts["Grafik"] = {
@@ -57,6 +58,7 @@ menu_parts["Grafik"] = {
 	{"LibreOffice Draw", "libreoffice --draw ", "/usr/share//icons/hicolor/16x16/apps/libreoffice-draw.png" },
 	{"Pinta", "pinta ", "/usr/share//icons/hicolor/16x16/apps/pinta.png" },
 	{"Skanlite", "skanlite", "/usr/share//icons/hicolor/48x48/apps/org.kde.skanlite.svg" },
+	{"XDvi", "xdvi "},
 	{"digiKam", "digikam -qwindowtitle digiKam", "/usr/share//icons/hicolor/16x16/apps/digikam.png" },
 	{"showFoto", "showfoto -qwindowtitle showFoto ", "/usr/share//icons/hicolor/16x16/apps/showfoto.png" },
 }
@@ -72,6 +74,16 @@ menu_parts["Internet"] = {
 	{"KDE Connect", "kdeconnect-app"},
 	{"KDE Connect-SMS", "kdeconnect-sms"},
 	{"KDE-Connect-Anzeige", "kdeconnect-indicator"},
+	{"Steam (Native)", "/usr/bin/env GDK_SCALE=2 /usr/bin/steam-native ", "/usr/share//icons/hicolor/16x16/apps/steam.png" },
+	{"Steam (Runtime)", "/usr/bin/env GDK_SCALE=2 /usr/bin/steam-runtime ", "/usr/share//icons/hicolor/16x16/apps/steam.png" },
+}
+
+menu_parts["Spiele"] = {
+	{"Minen", "gnome-mines"},
+	{"PolyMC", "polymc"},
+	{"Steam (Native)", "/usr/bin/env GDK_SCALE=2 /usr/bin/steam-native ", "/usr/share//icons/hicolor/16x16/apps/steam.png" },
+	{"Steam (Runtime)", "/usr/bin/env GDK_SCALE=2 /usr/bin/steam-runtime ", "/usr/share//icons/hicolor/16x16/apps/steam.png" },
+	{"bsnes", "/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=bsnes dev.bsnes.bsnes", "/var/lib/flatpak/exports/share/icons/hicolor/256x256/apps/dev.bsnes.bsnes.png" },
 }
 
 menu_parts["Systemwerkzeuge"] = {
@@ -80,6 +92,7 @@ menu_parts["Systemwerkzeuge"] = {
 	{"Crashed Processes Viewer", "drkonqi-coredump-gui"},
 	{"Discover", "plasma-discover ", "/usr/share//icons/hicolor/16x16/apps/plasmadiscover.png" },
 	{"Dolphin", "dolphin "},
+	{"Druckerverwaltung", "/usr/bin/xdg-open http://localhost:631/", "/usr/share//icons/hicolor/16x16/apps/cups.png" },
 	{"Festplattenbelegungsanalyse", "baobab "},
 	{"Hardware Locality lstopo", "lstopo"},
 	{"Htop", "xterm -e htop", "/usr/share/pixmaps/htop.png" },
@@ -115,7 +128,9 @@ menu_parts["Unterhaltungsmedien"] = {
 menu_parts["Zubehör"] = {
 	{"Archivverwaltung", "file-roller "},
 	{"Ark", "ark ", "/usr/share//icons/hicolor/48x48/apps/ark.png" },
+	{"Barrier", "barrier"},
 	{"Bücher", "gnome-books"},
+	{"Coolero", "/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=coolero org.coolero.Coolero"},
 	{"Dateien", "nautilus --new-window "},
 	{"Erweiterungen", "/usr/bin/gnome-extensions-app --gapplication-service"},
 	{"Filelight", "filelight ", "/usr/share//icons/hicolor/16x16/apps/filelight.png" },
@@ -141,6 +156,7 @@ menu_parts["Zubehör"] = {
 	{"Wetter", "gapplication launch org.gnome.Weather"},
 	{"Zeichen", "/usr/bin/gnome-characters"},
 	{"gedit", "gedit "},
+	{"ipython", "xterm -e ipython", "/usr/share/pixmaps/ipython.png" },
 	{"nitrogen", "nitrogen", "/usr/share//icons/hicolor/16x16/apps/nitrogen.png" },
 	{"picom", "picom"},
 }
@@ -152,6 +168,7 @@ local xdg_menu = {
 	{"Entwicklung", menu_parts["Entwicklung"]},
 	{"Grafik", menu_parts["Grafik"]},
 	{"Internet", menu_parts["Internet"]},
+	{"Spiele", menu_parts["Spiele"]},
 	{"Systemwerkzeuge", menu_parts["Systemwerkzeuge"]},
 	{"Unterhaltungsmedien", menu_parts["Unterhaltungsmedien"]},
 	{"Zubehör", menu_parts["Zubehör"]},

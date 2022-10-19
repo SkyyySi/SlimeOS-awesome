@@ -4,7 +4,7 @@ local wibox     = require("wibox")
 local beautiful = require("beautiful")
 local menubar   = require("menubar")
 local menubar_utils = require("modules.widgets.dock.menubar_utils")
-local wibox_layout_overflow = require("wibox_layout_overflow")
+wibox.layout.overflow = require("wibox_layout_overflow")
 
 local buttonify = require("modules.lib.buttonify")
 local util      = require("modules.lib.util")
@@ -156,6 +156,7 @@ local function category_launcher(args)
 	args = util.default(args, {})
 	args = {
 		screen = util.default(args.screen, screen.primary),
+		auto_close = util.default(args.auto_close, true),
 	}
 
 	-- TODO: Switch away from automatic category detection and use https://specifications.freedesktop.org/menu-spec/latest/apa.html instead
@@ -236,7 +237,7 @@ local function category_launcher(args)
 			end
 
 			-- TODO Add a proper categorization
-			local category_icon -- = menubar_utils.lookup_icon("applications-"..category)
+			local category_icon = "/usr/share/icons/Papirus-Dark/24x24/categories/"..all_apps.category_icon_map[category]..".svg" -- = menubar_utils.lookup_icon("applications-"..category)
 
 			items[k] = { category, subm, category_icon }
 		end
@@ -347,8 +348,9 @@ local function category_launcher(args)
 
 			local app_list_widget = wibox.widget {
 				app_list_widget_grid,
-				layout = wibox_layout_overflow.vertical,
+				layout = wibox.layout.overflow.vertical,
 			}
+			--app_list_widget_grid:set_step(40)
 
 			rasti_menu_wibox_subwidgets.app_lists[name] = app_list_widget_grid
 
@@ -405,16 +407,18 @@ local function category_launcher(args)
 		rasti_menu_wibox_subwidgets.category_switcher = wibox.widget {
 			{
 				rasti_menu_wibox_subwidgets.category_switcher_grid,
-				layout = wibox_layout_overflow.vertical,
+				layout = wibox.layout.overflow.vertical,
 			},
 			margins = util.scale(10),
 			widget  = wibox.container.margin,
 		}
+		--rasti_menu_wibox_subwidgets.category_switcher.widget:set_step(40)
 
 		rasti_menu_wibox_subwidgets.current_app_list_widget = wibox.widget {
 			rasti_menu_wibox_subwidgets.app_lists[category_names[1]],
-			layout = wibox_layout_overflow.vertical,
+			layout = wibox.layout.overflow.vertical,
 		}
+		--rasti_menu_wibox_subwidgets.current_app_list_widget:set_step(40)
 
 		rasti_menu_wibox_subwidgets.current_app_list = wibox.widget {
 			rasti_menu_wibox_subwidgets.current_app_list_widget,
@@ -426,7 +430,7 @@ local function category_launcher(args)
 		function rasti_menu_wibox_subwidgets.current_app_list_widget:change_category(category_name)
 			self.children[1] = wibox.widget {
 				rasti_menu_wibox_subwidgets.app_lists[category_name],
-				layout = wibox_layout_overflow.vertical,
+				layout = wibox.layout.overflow.vertical,
 			}
 			self:emit_signal("widget::layout_changed")
 			self:emit_signal("widget::redraw_needed")
@@ -553,6 +557,12 @@ local function category_launcher(args)
 				rasti_menu_wibox:toggle()
 			end
 		end)
+
+		if args.auto_close then
+			rasti_menu_wibox:connect_signal("mouse::leave", function(self)
+				self.visible = false
+			end)
+		end
 	end)
 end
 

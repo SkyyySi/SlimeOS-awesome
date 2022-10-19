@@ -57,6 +57,8 @@ awful.keyboard.append_global_keybindings({
 			  {description = "run prompt", group = "launcher"}),
 	awful.key({ globals.modkey }, "p", function() menubar.show() end,
 			  {description = "show the menubar", group = "launcher"}),
+	awful.key({ globals.modkey }, "space", function() menubar.show() --[[awesome.emit_signal("slimeos::toggle_launcher", mouse.screen)]] end,
+		{ description = "show the launcher", group = "launcher" }),
 })
 
 -- Tags related keybindings
@@ -126,10 +128,10 @@ awful.keyboard.append_global_keybindings({
 			  {description = "increase the number of columns", group = "layout"}),
 	awful.key({ globals.modkey, "Control" }, "l",     function () awful.tag.incncol(-1, nil, true)    end,
 			  {description = "decrease the number of columns", group = "layout"}),
-	awful.key({ globals.modkey,           }, "space", function () awful.layout.inc( 1)                end,
-			  {description = "select next", group = "layout"}),
-	awful.key({ globals.modkey, "Shift"   }, "space", function () awful.layout.inc(-1)                end,
-			  {description = "select previous", group = "layout"}),
+	--awful.key({ globals.modkey,           }, "space", function () awful.layout.inc( 1)                end,
+	--		  {description = "select next", group = "layout"}),
+	--awful.key({ globals.modkey, "Shift"   }, "space", function () awful.layout.inc(-1)                end,
+	--		  {description = "select previous", group = "layout"}),
 })
 
 
@@ -204,20 +206,20 @@ awful.keyboard.append_global_keybindings({
 
 --- Special function keys
 awful.keyboard.append_global_keybindings {
-	awful.key({}, "XF86AudioMute", function() awful.spawn("amixer set Master toggle", false) end),
+	awful.key({}, "XF86AudioMute", function() awful.spawn({ "amixer", "set", "Master", "toggle" }, false) end),
 	awful.key({}, "XF86AudioRaiseVolume", function()
-		awful.spawn("amixer set Master 5%+", false)
+		awful.spawn({ "amixer", "set", "Master", "5%+" }, false)
 		--notify("Raised volume by 5%")
 	end),
 	awful.key({}, "XF86AudioLowerVolume", function()
-		awful.spawn("amixer set Master 5%-", false)
+		awful.spawn({ "amixer", "set", "Master", "5%-" }, false)
 		--notify("Lowered volume by 5%")
 	end),
-	awful.key({}, "XF86AudioPlay", function() awful.spawn("playerctl play-pause", false) end),
-	awful.key({}, "XF86AudioPrev", function() awful.spawn("playerctl previous", false) end),
-	awful.key({}, "XF86AudioNext", function() awful.spawn("playerctl next", false) end),
-	awful.key({}, "XF86MonBrightnessDown", function() awful.spawn("xbacklight -dec 10", false) end),
-	awful.key({}, "XF86MonBrightnessUp",   function() awful.spawn("xbacklight -inc 10", false) end),
+	awful.key({}, "XF86AudioPlay", function() awful.spawn({ "playerctl", "play-pause" }, false) end),
+	awful.key({}, "XF86AudioPrev", function() awful.spawn({ "playerctl", "previous" }, false) end),
+	awful.key({}, "XF86AudioNext", function() awful.spawn({ "playerctl", "next" }, false) end),
+	awful.key({}, "XF86MonBrightnessDown", function() awful.spawn({ "xbacklight", "-dec", "10" }, false) end),
+	awful.key({}, "XF86MonBrightnessUp",   function() awful.spawn({ "xbacklight", "-inc", "10" }, false) end),
 }
 
 client.connect_signal("request::default_mousebindings", function()

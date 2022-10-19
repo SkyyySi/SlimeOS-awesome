@@ -52,6 +52,13 @@ function generators.create_dir_peeker(args)
 	args.state = args.state
 	args.geo = args.geo
 	args.screen = args.screen
+	args.container_template = args.container_template
+	args.grid_template = args.gird_template
+	args.icon_template = args.icon_template
+	args.foced_width  = args.forced_width
+	args.foced_height = args.forced_height
+	args.orientation = util.default(args.orientation, "horizontal")
+
 	args.style = util.default(args.style, {})
 	args.style.orientation = util.default(args.style.orientation, "horizontal")
 	args.style.container = util.default(args.style.container, {})
@@ -84,31 +91,28 @@ function generators.create_dir_peeker(args)
 	local path = desktop_dir.."/"..args.file
 
 	---@type desktop_icons.peeker
-	local peeker = wibox {
-		--width = args.style.container.geometry.width,
-		--height = args.style.container.geometry.height,
-		width = args.style.container.geometry.forced_width,
-		height = args.style.container.geometry.forced_height,
+	local peeker = wibox(args.container_template or {
 		bg = gears.color.transparent,
-		shape = args.style.container.shape,
-		shape_border_width = args.style.container.shape_border_width,
-		shape_border_color = args.style.container.shape_border_color,
+		shape = function(cr, w, h) gears.shape.rounded_rect(cr, w, h, util.scale(10)) end,
 		visible = false,
 		ontop = false,
-	}
+	})
+
+	peeker.width  =  args.forced_width or peeker.width
+	peeker.height = args.forced_height or peeker.height
 
 	---@type desktop_icons.peeker.grid
-	local grid = wibox.widget {
+	local grid = wibox.widget(args.grid_template or {
 		homogeneous     = true,
 		expand          = false,
-		orientation     = args.style.orientation,
-		spacing         = args.style.container.geometry.grid_spacing,
-		min_cols_size   = args.style.container.geometry.min_cols_size,
-		min_rows_size   = args.style.container.geometry.min_rows_size,
+		orientation     = args.orientation,
+		spacing         = util.scale(5),
+		--min_cols_size   = util.scale(50),
+		--min_rows_size   = args.style.container.geometry.min_rows_size,
 		forced_num_rows = 3,
 		forced_height   = peeker.height,
 		layout          = wibox.layout.grid,
-	}
+	})
 
 	function grid:try_add(shortcut)
 		if not shortcut then
@@ -118,31 +122,37 @@ function generators.create_dir_peeker(args)
 		self:add(shortcut)
 	end
 
-	peeker.widget = wibox.widget {
+	peeker.widget = wibox.widget(args.grid_template or {
 		{
 			{
-				font = args.style.container.title.font,
-				align = args.style.container.title.align,
-				markup = args.file,
+				id = "title-role",
+				font = "Sans, Bold 12",
+				align = "center",
+				--markup = args.file,
 				widget = wibox.widget.textbox,
 			},
 			{
 				{
-					grid,
+					--grid,
+					id = "grid-role",
 					margins = util.scale(5),
 					widget = wibox.container.margin,
 				},
-				layout = wibox.layout.overflow[args.style.orientation],
+				layout = wibox.layout.overflow[args.orientation],
 			},
 			layout = wibox.layout.align.vertical,
 		},
-		bg = args.style.container.bg,
-		fg = args.style.container.fg,
-		shape = args.style.container.shape,
-		shape_border_width = args.style.container.shape_border_width,
-		shape_border_color = args.style.container.shape_border_color,
+		bg = beautiful.bg_normal or "#202020",
+		fg = beautiful.fg_normal or "#E0E0E0",
+		shape = function(cr, w, h) gears.shape.rounded_rect(cr, w, h, util.scale(10)) end,
 		widget = wibox.container.background,
-	}
+	})
+
+	util.set_widget_prop_by_id(peeker.widget, "markup", args.file, "title-role")
+	util.set_widget_prop_by_id(peeker.widget, nil, grid, "grid-role")
+
+	-- property, value, ids, recursive
+	--peeker.widget:set_property("markup", args.file, "title-role")
 
 	function peeker:update_geometry()
 		local lc = args.style.container.geometry.line_count
@@ -152,7 +162,7 @@ function generators.create_dir_peeker(args)
 			self.width = args.style.container.geometry.foced_height
 		end
 
-		if args.style.orientation == "horizontal" then
+		if args.orientation == "horizontal" then
 			self.width  = args.style.container.geometry.foced_width  or args.style.container.geometry.max_length
 			self.height = args.style.container.geometry.foced_height or args.style.shortcut.geometry.height * lc + args.style.container.geometry.grid_spacing * (lc + 1)
 

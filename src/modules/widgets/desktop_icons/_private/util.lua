@@ -311,4 +311,20 @@ function util.file_can_be_cairo_surface(path)
 	return false
 end
 
+--- Sets widget properties based on an id. Recusive.
+---@param widget any
+---@param prop_key any
+---@param prop_value any
+---@param id string
+function util.set_widget_prop_by_id(widget, prop_key, prop_value, id)
+	for _, w in ipairs(widget:get_children_by_id(id)) do
+		notify(w.children)
+		if prop_key then
+			w[prop_key] = prop_value
+		else
+			table.insert(w, prop_value)
+		end
+	end
+end
+
 return util
