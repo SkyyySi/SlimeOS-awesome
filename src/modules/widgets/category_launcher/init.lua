@@ -5,6 +5,7 @@ local beautiful = require("beautiful")
 local menubar   = require("menubar")
 local menubar_utils = require("modules.widgets.dock.menubar_utils")
 wibox.layout.overflow = require("wibox_layout_overflow")
+awful.widget.inputbox = require("awful_widget_inputbox")
 
 local buttonify = require("modules.lib.buttonify")
 local globals = require("modules.lib.globals")
