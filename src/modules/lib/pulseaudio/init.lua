@@ -1,5 +1,4 @@
 if __PULSEAUDIO_SIGNALS_ALREADY_CREATED then
-	notify("Pulseaudio signals already created.")
 	return function() end
 end
 

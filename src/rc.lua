@@ -289,7 +289,7 @@ screen.connect_signal("request::desktop_decoration", function(s)
 
 	s.boxes.desktop_clock.widget = {
 		{
-			font    = "Source Sans Pro, Bold "..tostring(math.floor(util.scale(16))),
+			font    = "Cantarell, Bold "..tostring(util.round(tonumber(beautiful.font_size)) * 2),
 			align   = "center",
 			valign  = "top",
 			format  = "%T",
@@ -297,7 +297,7 @@ screen.connect_signal("request::desktop_decoration", function(s)
 			widget  = wibox.widget.textclock,
 		},
 		{
-			font    = "Source Sans Pro, "..tostring(math.floor(util.scale(8))),
+			font    = "Cantarell, Regular "..tostring(util.round(tonumber(beautiful.font_size)) * (4/3)),
 			align   = "center",
 			valign  = "top",
 			format  = "%A, %F",
@@ -501,7 +501,7 @@ screen.connect_signal("request::desktop_decoration", function(s)
 	}
 
 	screen.connect_signal("request::wallpaper", function(s)
-		--[[
+		--[ [
 		-- Wallpaper
 		if beautiful.wallpaper then
 			local wp = beautiful.wallpaper
@@ -531,13 +531,13 @@ screen.connect_signal("request::desktop_decoration", function(s)
 						--margins = margin,
 						--widget  = wibox.container.margin,
 					},
-					--bg = gears.color {
-					--	type  = "linear",
-					--	from  = { 0, 0 },
-					--	to    = { 0, s.geometry.height },
-					--	stops = { { 0, "#404480" }, { 1, "#406480" } },
-					--},
-					bg = "#9FA8DA",
+					bg = gears.color {
+						type  = "linear",
+						from  = { 0, 0 },
+						to    = { 0, s.geometry.height },
+						stops = { { 0, "#404480" }, { 1, "#406480" } },
+					},
+					--bg = "#9FA8DA",
 					widget = wibox.container.background,
 				}
 			}
@@ -562,35 +562,44 @@ screen.connect_signal("request::desktop_decoration", function(s)
 	end
 
 	function arc:fade_to(new_brightness)
+		do
+			self:set_brightness(new_brightness)
+			return
+		end
+
 		if self.brightness == new_brightness then
 			return
+		end
+
+		if self.current_timer then
+			self.current_timer:stop()
 		end
 
 		local step = 0.01
 		local update
 		if new_brightness <= self.brightness then
 			update = function()
-				if new_brightness < self.brightness then
-					self:set_brightness(self.brightness - step)
-					return true
+				if self.brightness + step <= new_brightness then
+					self:set_brightness(new_brightness)
+					return false
 				end
 
-				return false
+				self:set_brightness(self.brightness - step)
+				return true
 			end
 		else
 			update = function()
-				if new_brightness > self.brightness then
-					self:set_brightness(self.brightness + step)
-					return true
+				if self.brightness + step >= new_brightness then
+					self:set_brightness(new_brightness)
+					return false
 				end
 
-				return false
+				self:set_brightness(self.brightness + step)
+				return true
 			end
 		end
 
-		gears.timer.start_new(0.002, function()
-			return update()
-		end)
+		self.current_timer = gears.timer.start_new(0.0001, update)
 	end
 
 	local function dec2hex(n) return string.format("%x", n * 255) end
@@ -626,13 +635,15 @@ screen.connect_signal("request::desktop_decoration", function(s)
 					forced_width = s.panels.primary.height,
 					widget = arc,
 				},
-				margins = util.scale(4),
-				widget = wibox.container.margin,
+				id = "background-role",
+				bg = gears.color.transparent,
+				shape = gears.shape.circle,
+				widget = wibox.container.background,
 			},
-			layout = wibox.layout.fixed.horizontal,
+			margins = util.scale(4),
+			widget = wibox.container.margin,
 		},
-		bg = gears.color.transparent,
-		widget = wibox.container.background,
+		layout = wibox.layout.fixed.horizontal,
 	}
 
 	local menu_holder = {}
@@ -646,36 +657,48 @@ screen.connect_signal("request::desktop_decoration", function(s)
 			menus  = menus,
 		}
 
-		buttonify {
-			widget = s.widgets.launcher,
-			button_color_hover      = "",
-			button_color_normal     = "",
-			button_color_press      = "",
-			button_color_release    = "",
-			button_callback_hover   = function(w, b) arc:fade_to(0.3) end,
-			button_callback_normal  = function(w, b) arc:fade_to(0.1) end,
-			button_callback_press   = function(w, b) arc:fade_to(0.5) end,
-			button_callback_release = function(w, b)
-				arc:fade_to(0.3)
-				local width  = mouse.current_widget_geometry.width  + beautiful.useless_gap
-				local height = mouse.current_widget_geometry.height + beautiful.useless_gap
+		for _, child in pairs(s.widgets.launcher:get_children_by_id("background-role")) do
+			buttonify {
+				widget = child,
+				button_color_hover    = gears.color.transparent, --"#FF0000",
+				button_color_normal   = gears.color.transparent,
+				button_color_press    = gears.color.transparent, --"#FFFF00",
+				button_color_release  = gears.color.transparent, --"#FF8000",
+				button_callback_hover = function(w, b)
+					--notify("Enter", 0.5)
+					arc:fade_to(0.3)
+				end,
+				button_callback_normal = function(w, b)
+					--notify("Normal", 0.5)
+					arc:fade_to(0.1)
+				end,
+				button_callback_press = function(w, b)
+					--notify("Press", 0.5)
+					arc:fade_to(0.5)
+				end,
+				button_callback_release = function(w, b)
+					--notify("Release", 0.5)
+					arc:fade_to(0.3)
+					local width  = mouse.current_widget_geometry.width  + beautiful.useless_gap
+					local height = mouse.current_widget_geometry.height + beautiful.useless_gap
 
-				if b == 1 then
-					--awful.spawn({
-					--	"rofi", "-config", globals.config_dir.."/config/rofi/config.rasi",
-					--	"-xoffset", tostring(beautiful.useless_gap),
-					--	"-yoffset", tostring(-(height)),
-					--	"-show", "drun",
-					--})
-					awesome.emit_signal("slimeos::toggle_launcher", s)
-					--menu.main:toggle()
-				elseif b == 2 then
-					menu.settings:toggle()
-				elseif b == 3 then
-					menu.tools:toggle()
+					if b == 1 then
+						--awful.spawn({
+						--	"rofi", "-config", globals.config_dir.."/config/rofi/config.rasi",
+						--	"-xoffset", tostring(beautiful.useless_gap),
+						--	"-yoffset", tostring(-(height)),
+						--	"-show", "drun",
+						--})
+						awesome.emit_signal("slimeos::toggle_launcher", s)
+						--menu.main:toggle()
+					elseif b == 2 then
+						menu.settings:toggle()
+					elseif b == 3 then
+						menu.tools:toggle()
+					end
 				end
-			end
-		}
+			}
+		end
 	end)
 
 	-- Create a textclock widget
@@ -683,7 +706,7 @@ screen.connect_signal("request::desktop_decoration", function(s)
 		format = "%d.%m.%Y - %H:%M",
 		align = "center",
 		font = "Roboto mono, Semibold "..beautiful.font_size,
-		forced_width = util.scale(140),
+		--forced_width = util.scale(200),
 		widget = wibox.widget.textclock,
 	}
 
@@ -1452,6 +1475,12 @@ client.connect_signal("manage", function(c) ---@param c client._instance
 			c.ontop = true
 			c.focusable = false
 		end
+	end
+
+	if c.class == "Plank" then
+		c.below = true
+		c.border_width = 0
+		c.focusable = false
 	end
 
 	if c.type == "normal" then

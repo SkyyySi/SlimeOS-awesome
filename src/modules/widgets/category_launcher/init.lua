@@ -7,12 +7,58 @@ local menubar_utils = require("modules.widgets.dock.menubar_utils")
 wibox.layout.overflow = require("wibox_layout_overflow")
 
 local buttonify = require("modules.lib.buttonify")
+local globals = require("modules.lib.globals")
 local util      = require("modules.lib.util")
 local tts = util.table_to_string
 local ttss = util.table_to_string_simple
 
+local inf, neginf = math.huge, -math.huge
+--- A fuzzy finder, see https://github.com/swarn/fzy-lua
+local fzy
+pcall(function() fzy = require("fzy") end)
+fzy = fzy or require("modules.widgets.category_launcher.fzy_lua")
 
-local all_apps, all_apps_mt = {}, { is_generated = false }
+--- Get the initials from a full name
+---@generic T1 : str
+---@param name? T1
+---@return T1
+local function get_initials(name)
+	if not name then
+		return name
+	end
+
+	local inits = name:sub(1, 1)
+
+	for i = 2, #name do
+		if name:sub(i, i) == " " then
+			inits = inits..name:sub(i+1, i+1)
+		end
+	end
+
+	return inits
+end
+
+local function search_highlight(str, pattern)
+	if not fzy.has_match(str, pattern) then
+		return
+	end
+
+	local positions, newstr = fzy.positions(str, pattern), "";
+	for i = 1, #pattern do
+		local c = pattern:sub(i, i)
+		if i == positions[1] then
+			newstr = newstr.."<b>"..c.."</b>"
+			table.remove(positions, 1)
+		else
+			newstr = newstr..c
+		end
+	end
+
+	return newstr
+end
+
+local all_apps = {}
+local all_apps_mt = { is_generated = false }
 all_apps_mt.__index = all_apps_mt
 setmetatable(all_apps, all_apps_mt)
 function all_apps_mt:update(fn)
@@ -44,7 +90,9 @@ function all_apps_mt:update(fn)
 
 			local tmp = {}
 			for _, k in ipairs(sorted_app_names) do
-				table.insert(tmp, apps[k])
+				if apps[k].show then
+					table.insert(tmp, apps[k])
+				end
 			end
 			for k, v in ipairs(tmp) do
 				local do_insert = true
@@ -136,9 +184,28 @@ all_apps_mt.category_id_map = setmetatable({
 	Other       = "applications-other",
 }, all_apps_mt._return_key_mt)
 
-menubar.menu_gen.generate(function(menu)
-	util.dump_to_file(tts(menu), "/tmp/menu.lua")
-end)
+function all_apps_mt:fuzzy_find_app(matcher_string)
+	local found_matches = {}
+
+	for _, app in ipairs(self) do
+		if app and app.Name and fzy.has_match(matcher_string, app.Name) then
+			table.insert(found_matches, { fzy.score(matcher_string, app.Name), app })
+		end
+	end
+
+	table.sort(found_matches, function(a, b)
+		return a[1] > b[1]
+	end)
+
+	--notify(#found_matches, 0)
+	--notify(("3 closest matches for '%s': %s, %s and %s"):format(matcher_string, found_matches[1][2].Name, found_matches[2][2].Name, found_matches[3][2].Name), 0)
+
+	return found_matches
+end
+
+--menubar.menu_gen.generate(function(menu)
+--	util.dump_to_file(tts(menu), "/tmp/menu.lua")
+--end)
 
 --all_apps:run(function(self)
 	--local str = ""
@@ -161,7 +228,7 @@ local function category_launcher(args)
 
 	-- TODO: Switch away from automatic category detection and use https://specifications.freedesktop.org/menu-spec/latest/apa.html instead
 
-	all_apps:run(function(apps)
+	all_apps:run(function(apps) ---@param apps FreeDesktop.desktop_entry[]
 		util.dump_to_file(tts(apps), "/tmp/apps.lua")
 		---@type string[]
 		local category_names = {
@@ -213,7 +280,7 @@ local function category_launcher(args)
 		end
 		table.sort(category_names)
 
-		util.dump_to_file(tts(category_names), "/tmp/category_names.lua")
+		--util.dump_to_file(tts(category_names), "/tmp/category_names.lua")
 
 		local items = {} ---@type table[]
 		for k,category in ipairs(category_names) do
@@ -242,11 +309,11 @@ local function category_launcher(args)
 			items[k] = { category, subm, category_icon }
 		end
 
-		util.dump_to_file(tts(items), "/tmp/items.lua")
+		--util.dump_to_file(tts(items), "/tmp/items.lua")
 
 		local rasti_menu_wibox = wibox {
 			width   = util.scale(500),
-			height  = util.scale(600),
+			height  = util.scale(700),
 			ontop   = true,
 			visible = false,
 			screen  = args.screen,
@@ -256,13 +323,217 @@ local function category_launcher(args)
 			end,
 		}
 
+		local rasti_menu_wibox_subwidgets = {}
+
+		local function create_app_entry(app_name, app_icon, app_cmd, container_grid)
+			local app_widget_icon
+
+			if app_icon then
+				app_widget_icon = wibox.widget {
+					{
+						image  = app_icon,
+						widget = wibox.widget.imagebox,
+					},
+					right  = util.scale(10),
+					widget = wibox.container.margin,
+				}
+			end
+
+			local app_widget = wibox.widget {
+				{
+					{
+						app_widget_icon,
+						{
+							markup = app_name,
+							halign = "left",
+							valign = "center",
+							widget = wibox.widget.textbox,
+						},
+						forced_height = util.scale(35),
+						layout        = wibox.layout.fixed.horizontal,
+					},
+					margins = util.scale(5),
+					widget  = wibox.container.margin,
+				},
+				shape  = function(cr, w, h)
+					gears.shape.rounded_rect(cr, w, h, util.scale(10))
+				end,
+				widget = wibox.container.background,
+			}
+
+			buttonify {
+				app_widget,
+				button_callback_release = function(w, b)
+					if b == 1 then
+						awful.spawn(app_cmd)
+						rasti_menu_wibox:hide()
+					elseif b == 4 or b == 5 then
+						for _, child in pairs(container_grid.children) do
+							child.widget.bg = gears.color.transparent
+						end
+					end
+				end,
+			}
+
+			return wibox.widget {
+				app_widget,
+				right  = util.scale(10),
+				widget = wibox.container.margin,
+			}
+		end
+
+		--notify(tts(apps[1]), 0)
+		local search_prompt_textbox = wibox.widget.textbox()
+		local search_prompt_is_running = false
+		local search_prompt_app_list_grid = wibox.widget {
+			homogeneous   = true,
+			expand        = false,
+			orientation   = "vertical",
+			spacing       = util.scale(5),
+			min_cols_size = util.scale(160),
+			forced_width  = util.scale(160),
+			layout        = wibox.layout.grid,
+		}
+
+		local function search_prompt()
+			search_prompt_is_running = true
+			local _old_category = rasti_menu_wibox_subwidgets.current_app_list_widget._current_app_category
+			awful.prompt.run {
+				prompt = "<b>Search: </b>",
+				textbox = search_prompt_textbox,
+				done_callback = function()
+					search_prompt_is_running = false
+					if rasti_menu_wibox_subwidgets.current_app_list_widget._current_app_category == "_search" then
+						rasti_menu_wibox_subwidgets.current_app_list_widget:change_category(_old_category)
+					end
+					rasti_menu_wibox:hide()
+				end,
+				exe_callback = function(input)
+					if not input or #input == 0 then return end
+					--notify("The input was: "..input)
+					--notify("The the closest match is: "..tts(apps:fuzzy_find_app(input)[1]), 0)
+					local found_app = apps:fuzzy_find_app(input)[1][2]
+					local cmd = ""
+					if found_app.cmdline then
+						cmd = found_app.cmdline
+					elseif found_app.Exec then
+						cmd = found_app.Exec:match("(.+)%%")
+					end
+					--notify(tts(found_app), 0)
+					awful.spawn(cmd)
+					rasti_menu_wibox:hide()
+				end,
+				keypressed_callback = function(mod, key, input)
+					if key == "Escape" then
+						return
+					end
+
+					if not input or #input == 0 then
+						if rasti_menu_wibox_subwidgets.current_app_list_widget._current_app_category == "_search" then
+							rasti_menu_wibox_subwidgets.current_app_list_widget:change_category(_old_category)
+						end
+						return
+					end
+
+					if #key == 1 then -- Only append characters, not things like `BackSpace`
+						input = input..key
+					end
+
+					rasti_menu_wibox_subwidgets.current_app_list_widget:change_category("_search")
+
+					local found_apps = apps:fuzzy_find_app(input)
+
+					--for k, _ in pairs(search_prompt_app_list_grid.children) do
+					--	search_prompt_app_list_grid.children[k] = nil
+					--end
+					search_prompt_app_list_grid:reset()
+
+					for _, app_pair in pairs(found_apps) do
+						if app_pair and next(app_pair[2]) ~= nil then
+							--search_prompt_app_list_grid:add(wibox.widget {
+							--	markup = search_highlight(input, found_apps[i][2].Name),
+							--	widget = wibox.widget.textbox,
+							--})
+							local app = app_pair[2]
+							local cmd = ""
+							if app.cmdline then
+								cmd = app.cmdline
+							elseif app.Exec then
+								cmd = app.Exec:match("(.+)%%")
+							end
+							local app_widget = create_app_entry(search_highlight(input, app.Name), menubar_utils.lookup_icon(app.Icon or ""), cmd, search_prompt_app_list_grid)
+
+							search_prompt_app_list_grid:add(app_widget)
+						end
+					end
+
+					search_prompt_app_list_grid:emit_signal("widget::layout_changed")
+					search_prompt_app_list_grid:emit_signal("widget::redraw_needed")
+					--local top_matches_str = tts(search_prompt_app_list)
+					--tmp_wibox.widget.markup = (top_matches_str)
+					--tmp_wibox.widget.text = ("X")
+					--tmp_wibox.widget.text = (top_matches_str)
+					--tmp_wibox.widget:emit_signal("widget::layout_changed")
+					--tmp_wibox.widget:emit_signal("widget::redraw_needed")
+					--notify(tmp_wibox.widget.text)
+					--notify(found_app.Name, 0.5)
+				end,
+			}
+		end
+
+		local search_prompt_widget = wibox.widget {
+			{
+				{
+					search_prompt_textbox,
+					left   = util.scale(8),
+					right  = util.scale(8),
+					widget = wibox.container.margin,
+				},
+				bg = beautiful.bg_normal,
+				fg = beautiful.fg_normal,
+				shape = function(cr, w, h)
+					gears.shape.rounded_rect(cr, w, h, util.scale(10))
+				end,
+				widget = wibox.container.background,
+			},
+			left   = util.scale(10),
+			right  = util.scale(10),
+			bottom = util.scale(10),
+			widget = wibox.container.margin,
+		}
+
+		-- TODO: Link the search with the app list and fzy
+
+		function rasti_menu_wibox:show()
+			self.visible = true
+			rasti_menu_wibox_subwidgets.current_app_list_widget:change_category(category_names[1])
+			search_prompt()
+		end
+
+		function rasti_menu_wibox:hide()
+			self.visible = false
+			-- This sucks, but there's no better solution right now,
+			-- see https://stackoverflow.com/a/67381002
+			--keygrabber.stop()
+			if search_prompt_is_running then
+				local char = "Escape"
+				root.fake_input("key_press",   char)
+				root.fake_input("key_release", char)
+				search_prompt_is_running = false
+			end
+			search_prompt_textbox.text = ""
+		end
+
 		function rasti_menu_wibox:toggle()
-			self.visible = not self.visible
+			if self.visible then
+				rasti_menu_wibox:hide()
+			else
+				rasti_menu_wibox:show()
+			end
 		end
 
 		awful.placement.bottom_left(rasti_menu_wibox, { margins = util.scale(5), honor_workarea = true })
 
-		local rasti_menu_wibox_subwidgets = {}
 		rasti_menu_wibox_subwidgets.categories = {}
 		rasti_menu_wibox_subwidgets.app_lists = {}
 
@@ -295,6 +566,7 @@ local function category_launcher(args)
 			for _, app in pairs(category_apps) do
 				local app_name, app_cmd, app_icon = app[1], app[2], menubar_utils.lookup_icon(app[3] or "") or nil
 
+				--[[
 				local app_widget_icon
 				if app_icon then
 					app_widget_icon = wibox.widget {
@@ -334,16 +606,19 @@ local function category_launcher(args)
 					button_callback_release = function(w, b)
 						if b == 1 then
 							awful.spawn(app_cmd)
-							rasti_menu_wibox:toggle()
+							rasti_menu_wibox:hide()
+						elseif b == 4 or b == 5 then
+							for _, child in pairs(app_list_widget_grid.children) do
+								child.widget.bg = gears.color.transparent
+							end
 						end
 					end,
 				}
+				--]]
 
-				app_list_widget_grid:add(wibox.widget {
-					app_widget,
-					right  = util.scale(10),
-					widget = wibox.container.margin,
-				})
+				local app_widget = create_app_entry(app_name, app_icon, app_cmd, app_list_widget_grid)
+
+				app_list_widget_grid:add(app_widget)
 			end
 
 			local app_list_widget = wibox.widget {
@@ -406,8 +681,20 @@ local function category_launcher(args)
 
 		rasti_menu_wibox_subwidgets.category_switcher = wibox.widget {
 			{
-				rasti_menu_wibox_subwidgets.category_switcher_grid,
-				layout = wibox.layout.overflow.vertical,
+				{
+					{
+						rasti_menu_wibox_subwidgets.category_switcher_grid,
+						layout = wibox.layout.overflow.vertical,
+					},
+					margins = util.scale(8),
+					widget  = wibox.container.margin,
+				},
+				bg     = beautiful.bg_normal,
+				fg     = beautiful.fg_normal,
+				shape  = function(cr, w, h)
+					gears.shape.rounded_rect(cr, w, h, util.scale(10))
+				end,
+				widget = wibox.container.background,
 			},
 			margins = util.scale(10),
 			widget  = wibox.container.margin,
@@ -421,13 +708,37 @@ local function category_launcher(args)
 		--rasti_menu_wibox_subwidgets.current_app_list_widget:set_step(40)
 
 		rasti_menu_wibox_subwidgets.current_app_list = wibox.widget {
-			rasti_menu_wibox_subwidgets.current_app_list_widget,
+			{
+				{
+					rasti_menu_wibox_subwidgets.current_app_list_widget,
+					margins = util.scale(8),
+					widget  = wibox.container.margin,
+				},
+				bg     = beautiful.bg_normal,
+				fg     = beautiful.fg_normal,
+				shape  = function(cr, w, h)
+					gears.shape.rounded_rect(cr, w, h, util.scale(10))
+				end,
+				widget = wibox.container.background,
+			},
 			margins = util.scale(10),
 			widget  = wibox.container.margin,
 		}
 
 		---@param category_name string
 		function rasti_menu_wibox_subwidgets.current_app_list_widget:change_category(category_name)
+			self._current_app_category = category_name
+
+			if category_name == "_search" then
+				self.children[1] = wibox.widget {
+					search_prompt_app_list_grid,
+					layout = wibox.layout.overflow.vertical,
+				}
+				self:emit_signal("widget::layout_changed")
+				self:emit_signal("widget::redraw_needed")
+				return
+			end
+
 			self.children[1] = wibox.widget {
 				rasti_menu_wibox_subwidgets.app_lists[category_name],
 				layout = wibox.layout.overflow.vertical,
@@ -439,7 +750,7 @@ local function category_launcher(args)
 		rasti_menu_wibox_subwidgets.power_menu_button = wibox.widget {
 			{
 				{
-					image  = menubar_utils.lookup_icon("system-shutdown"),
+					image  = "/usr/share/icons/Papirus-Dark/symbolic/actions/system-shutdown-symbolic.svg", --menubar_utils.lookup_icon("system-shutdown"),
 					widget = wibox.widget.imagebox,
 				},
 				margins = util.scale(5),
@@ -520,10 +831,122 @@ local function category_launcher(args)
 			end,
 		}
 
+		rasti_menu_wibox_subwidgets.terminal = wibox.widget {
+			{
+				{
+					image  = "/usr/share/icons/Papirus-Dark/symbolic/apps/utilities-terminal-symbolic.svg", --menubar_utils.lookup_icon("system-shutdown"),
+					widget = wibox.widget.imagebox,
+				},
+				margins = util.scale(5),
+				widget  = wibox.container.margin,
+			},
+			shape  = function(cr, w, h)
+				gears.shape.rounded_rect(cr, w, h, util.scale(10))
+			end,
+			forced_height = util.scale(40),
+			widget = wibox.container.background,
+		}
+
+		buttonify {
+			rasti_menu_wibox_subwidgets.terminal,
+			button_callback_release = function(w, b)
+				awful.spawn(globals.terminal or terminal or "xterm")
+				rasti_menu_wibox:hide()
+			end,
+		}
+
+		rasti_menu_wibox.user_info = wibox.widget {
+			{
+				{
+					{
+						{
+							{
+								id         = "user-pfp-role",
+								align      = "left",
+								clip_shape = gears.shape.circle,
+								widget     = wibox.widget.imagebox,
+							},
+							shape              = gears.shape.circle,
+							shape_border_width = util.scale(1),
+							shape_border_color = "#808080",
+							widget             = wibox.container.background,
+						},
+						{
+							{
+								orientation = "vertical",
+								forced_width = util.scale(1),
+								widget = wibox.widget.separator,
+							},
+							left   = util.scale(8),
+							right  = util.scale(8),
+							widget = wibox.container.margin
+						},
+						{
+							id     = "user-name-role",
+							font   = "Source Sans Pro, Semibold 20",
+							align  = "left",
+							valign = "center",
+							widget = wibox.widget.textbox,
+						},
+						layout = wibox.layout.fixed.horizontal,
+					},
+					margins = util.scale(8),
+					widget  = wibox.container.margin
+				},
+				shape = function(cr, w, h)
+					gears.shape.rounded_rect(cr, w, h, util.scale(10))
+				end,
+				bg = beautiful.bg_normal,
+				fg = beautiful.fg_normal,
+				forced_height = util.scale(60),
+				widget = wibox.container.background,
+			},
+			margins = util.scale(10),
+			widget = wibox.container.margin
+		}
+
+		for _, child in ipairs(rasti_menu_wibox.user_info:get_children_by_id("user-pfp-role")) do
+			local pfp
+
+			awful.spawn.easy_async_with_shell([[getent passwd "${USER:-$(whoami)}" | cut -d ':' -f 5 | cut -d ',' -f 1]], function(stdout, stderr, reason, exit_code)
+				local initials = "NaN"
+				if stdout and not stdout:match("^%s*$") then
+					initials = get_initials(stdout:gsub("\n", ""))
+				end
+				child.image =  wibox.widget.draw_to_image_surface(wibox.widget {
+					{
+						text   = initials,
+						font   = "Source Sans Pro, Bold 20",
+						align  = "center",
+						widget = wibox.widget.textbox,
+					},
+					bg = gears.color {
+						type  = "linear",
+						from  = { 0,  0 },
+						to    = { 0, util.scale(60) },
+						stops = { { 0, "#FFFFFF40" }, { 1, "#00000040" } },
+					},
+					widget = wibox.container.background,
+				}, util.scale(60), util.scale(60))
+			end)
+
+			--child.image = beautiful.awesome_icon
+		end
+
+		for _, child in ipairs(rasti_menu_wibox.user_info:get_children_by_id("user-name-role")) do
+			--awful.spawn.easy_async({ "whoami" }, function(stdout, stderr, reason, exit_code)
+			awful.spawn.easy_async_with_shell([[getent passwd "${USER:-$(whoami)}" | cut -d ':' -f 5 | cut -d ',' -f 1]], function(stdout, stderr, reason, exit_code)
+				local full_name = (stdout or "NAME NOT FOUND"):gsub("\n", "")
+				--child.text = full_name
+				child.text = "Simon B."
+			end)
+		end
+
 		rasti_menu_wibox.widget = wibox.widget {
 			{
 				{
-					nil,
+					rasti_menu_wibox.user_info,
+					--nil,
 					{
 						-- App view, categories
 						nil,
@@ -533,9 +956,18 @@ local function category_launcher(args)
 					},
 					{
 						-- Search bar, power menu
+						search_prompt_widget,
 						nil,
-						nil,
-						rasti_menu_wibox_subwidgets.power_menu,
+						{
+							{
+								rasti_menu_wibox_subwidgets.terminal,
+								right  = util.scale(1),
+								bottom = util.scale(10),
+								widget = wibox.container.margin,
+							},
+							rasti_menu_wibox_subwidgets.power_menu,
+							layout = wibox.layout.fixed.horizontal,
+						},
 						layout = wibox.layout.align.horizontal,
 					},
 					layout = wibox.layout.align.vertical,
@@ -560,7 +992,7 @@ local function category_launcher(args)
 
 		if args.auto_close then
 			rasti_menu_wibox:connect_signal("mouse::leave", function(self)
-				self.visible = false
+				rasti_menu_wibox:hide()
 			end)
 		end
 	end)

@@ -10,7 +10,9 @@
         "awesome",
         "mouse",
         "tag",
-        "mousegrabber"
+        "mousegrabber",
+        "keygrabber",
+        "root"
     ],
     "Lua.workspace.checkThirdParty": false
 }

@@ -106,7 +106,8 @@ t.color.light_mode.__index = t.color.light_mode
 t.color.current = t.color.dark_mode
 setmetatable(t.color, t.color.current)
 
-t.font_size = tostring(math.floor(util.scale(6))) ---@type string
+---@type string
+t.font_size = util.scale(1) > 1 and tostring(util.round(util.scale(8))) or tostring(util.round(util.scale(12)))
 t.font = "Roboto, Regular "..t.font_size
 t.monospace_font = "MesloLGS NF, Bold "..t.font_size
 
@@ -175,6 +176,24 @@ local function refresh_colors(scheme)
 	t.button_normal = gears.color.transparent
 	t.button_press = "#FFFFFF40"
 	t.button_release = "#FFFFFF20"
+
+	-- You can use your own layout icons like this:
+	t.layout_fairh      = gears.color.recolor_image(theme_dir.."layouts/fairhw.png", t.fg_normal)
+	t.layout_fairv      = gears.color.recolor_image(theme_dir.."layouts/fairvw.png", t.fg_normal)
+	t.layout_floating   = gears.color.recolor_image(theme_dir.."layouts/floatingw.png", t.fg_normal)
+	t.layout_magnifier  = gears.color.recolor_image(theme_dir.."layouts/magnifierw.png", t.fg_normal)
+	t.layout_max        = gears.color.recolor_image(theme_dir.."layouts/maxw.png", t.fg_normal)
+	t.layout_fullscreen = gears.color.recolor_image(theme_dir.."layouts/fullscreenw.png", t.fg_normal)
+	t.layout_tilebottom = gears.color.recolor_image(theme_dir.."layouts/tilebottomw.png", t.fg_normal)
+	t.layout_tileleft   = gears.color.recolor_image(theme_dir.."layouts/tileleftw.png", t.fg_normal)
+	t.layout_tile       = gears.color.recolor_image(theme_dir.."layouts/tilew.png", t.fg_normal)
+	t.layout_tiletop    = gears.color.recolor_image(theme_dir.."layouts/tiletopw.png", t.fg_normal)
+	t.layout_spiral     = gears.color.recolor_image(theme_dir.."layouts/spiralw.png", t.fg_normal)
+	t.layout_dwindle    = gears.color.recolor_image(theme_dir.."layouts/dwindlew.png", t.fg_normal)
+	t.layout_cornernw   = gears.color.recolor_image(theme_dir.."layouts/cornernww.png", t.fg_normal)
+	t.layout_cornerne   = gears.color.recolor_image(theme_dir.."layouts/cornernew.png", t.fg_normal)
+	t.layout_cornersw   = gears.color.recolor_image(theme_dir.."layouts/cornersww.png", t.fg_normal)
+	t.layout_cornerse   = gears.color.recolor_image(theme_dir.."layouts/cornersew.png", t.fg_normal)
 end
 
 refresh_colors(t.color.current)
@@ -308,24 +327,6 @@ for _, wp in ipairs(wp_pref_order) do
 		break
 	end
 end
-
--- You can use your own layout icons like this:
-t.layout_fairh      = theme_dir.."layouts/fairhw.png"
-t.layout_fairv      = theme_dir.."layouts/fairvw.png"
-t.layout_floating   = theme_dir.."layouts/floatingw.png"
-t.layout_magnifier  = theme_dir.."layouts/magnifierw.png"
-t.layout_max        = theme_dir.."layouts/maxw.png"
-t.layout_fullscreen = theme_dir.."layouts/fullscreenw.png"
-t.layout_tilebottom = theme_dir.."layouts/tilebottomw.png"
-t.layout_tileleft   = theme_dir.."layouts/tileleftw.png"
-t.layout_tile       = theme_dir.."layouts/tilew.png"
-t.layout_tiletop    = theme_dir.."layouts/tiletopw.png"
-t.layout_spiral     = theme_dir.."layouts/spiralw.png"
-t.layout_dwindle    = theme_dir.."layouts/dwindlew.png"
-t.layout_cornernw   = theme_dir.."layouts/cornernww.png"
-t.layout_cornerne   = theme_dir.."layouts/cornernew.png"
-t.layout_cornersw   = theme_dir.."layouts/cornersww.png"
-t.layout_cornerse   = theme_dir.."layouts/cornersew.png"
 
 -- Generate Awesome icon:
 t.awesome_icon = theme_assets.awesome_icon(

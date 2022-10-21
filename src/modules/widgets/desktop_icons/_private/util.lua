@@ -318,7 +318,6 @@ end
 ---@param id string
 function util.set_widget_prop_by_id(widget, prop_key, prop_value, id)
 	for _, w in ipairs(widget:get_children_by_id(id)) do
-		notify(w.children)
 		if prop_key then
 			w[prop_key] = prop_value
 		else

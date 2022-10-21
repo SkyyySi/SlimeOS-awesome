@@ -8,6 +8,18 @@ local xresources = require("beautiful.xresources")
 
 -- Faster lookup
 local next = next
+local math = math
+local io = io
+local os = os
+local pairs = pairs
+local ipairs = ipairs
+local tonumber = tonumber
+local tostring = tostring
+local debug = debug
+local table = table
+local type = type
+local setmetatable = setmetatable
+local getmetatable = getmetatable
 
 local util = {}
 
@@ -678,6 +690,34 @@ function util.filter_by_pattern(strings, pattern)
 	end
 
 	return does_match, does_not_match
+end
+
+--- Rounds a number mathmatically correctly: if its decimal place is <.5
+--- it will be rounded down, otherwise up.
+---@param x any
+function util.round(x)
+	local floor = math.floor(x)
+
+	if x - floor < 0.5 then
+		return floor
+	end
+
+	return floor + 1
+end
+
+--- Sets widget properties based on an id. Recusive.
+---@param widget any
+---@param prop_key any
+---@param prop_value any
+---@param id string
+function util.set_widget_prop_by_id(widget, prop_key, prop_value, id)
+	for _, w in ipairs(widget:get_children_by_id(id)) do
+		if prop_key then
+			w[prop_key] = prop_value
+		else
+			table.insert(w, prop_value)
+		end
+	end
 end
 
 return util

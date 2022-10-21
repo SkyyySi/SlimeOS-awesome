@@ -785,7 +785,8 @@ function generators.file.desktop(args)
 		is_for_desktop = args.is_for_desktop,
 		onclick = {
 			function()
-				awful.spawn.with_shell(desktop_file.Cmdline)
+				local cmd = desktop_file:get_string("Exec"):match("(.+)%%")
+				awful.spawn.with_shell(cmd)
 			end,
 		},
 	}
