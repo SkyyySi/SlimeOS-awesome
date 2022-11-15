@@ -6,6 +6,8 @@ My dotfiles for the awesome window manager.
 
 TL;DR: To install on Arch Linux, please run the included `install.sh` script.
 
+For details, please refer to the wiki page.
+
 ## Dependencies
 
 ### Required dependencies:
