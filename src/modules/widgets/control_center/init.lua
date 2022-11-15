@@ -682,7 +682,7 @@ local function main(args)
 							font         = "MesloLGS NF, Semibold "..tostring(tonumber(beautiful.font_size)-2),
 							align        = "right",
 							halign       = "center",
-							forced_width = util.scale(28),
+							forced_width = util.scale(40),
 							widget       = wibox.widget.textbox,
 						},
 						left   = util.scale(4),

@@ -3,3 +3,5 @@
 ---@alias str string
 ---@alias bool boolean
 ---@alias fn function
+
+---@class template : table

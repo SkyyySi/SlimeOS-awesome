@@ -1,3 +1,8 @@
+---@meta
+
+-- -@class wibox.widget._args : table
+---@alias wibox.widget._args table
+
 ---@class wibox.widget
 -- -@field background wibox.container.background
 ---@field base wibox.widget.base
@@ -43,3 +48,5 @@ function cls:draw_to_svg_file(wdg, path, width, height, context) end
 ---@param context { dpi: 96 }
 function cls:draw_to_image_surface(wdg, width, height, format, context) end
 
+-- -@class wibox.widget._instance : table
+---@alias wibox.widget._instance table

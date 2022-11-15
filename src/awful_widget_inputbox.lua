@@ -1,1 +1,1 @@
-/home/simon/projects/lua/awesome-crylia/lib/awful/widget/inputbox.lua
+/home/simon/Projects/lua/awesome-crylia/lib/awful/widget/inputbox.lua

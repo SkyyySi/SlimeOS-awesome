@@ -1,12 +1,13 @@
-local gears      = require("gears")
-local awful      = require("awful")
-local wibox      = require("wibox")
-local ruled      = require("ruled")
-local naughty    = require("naughty")
+--local gears      = require("gears")
+--local awful      = require("awful")
+--local wibox      = require("wibox")
+--local ruled      = require("ruled")
+--local naughty    = require("naughty")
 local globals    = require("modules.lib.globals")
 local xresources = require("beautiful.xresources")
 
 -- Faster lookup
+local require = require
 local next = next
 local math = math
 local io = io
@@ -22,6 +23,8 @@ local setmetatable = setmetatable
 local getmetatable = getmetatable
 
 local util = {}
+
+util.color = require("modules.lib.util.color")
 
 --- Returns the current Lua version as a number
 ---@return number? version
@@ -465,7 +468,7 @@ function util.map_array(array, fn)
 	return new_array
 end
 
-
+--[==[
 ---@param path string The directory path to list the contents of
 ---@param callback fun(item: string)
 ---@return string[] contents Array of files and directories located in `path` (populated asynchronously!!!)
@@ -491,6 +494,7 @@ function util.ls(path, callback)
 
 	return out
 end
+--]==]
 
 --- Check if a file exists in this path; returns `false` when
 --- passed a directory instead of a file path
@@ -619,6 +623,10 @@ function util.table_to_string(t, indent, depth)
 		end
 
 		if tv == "table" then
+			if tv == t then
+				return "[[...]]"
+			end
+
 			outs = ("%s%s[%s] = %s"):format(outs, full_indent, k, util.table_to_string(v, indent, depth + 1).."\n")
 		else
 			if tv == "string" then
@@ -717,6 +725,27 @@ function util.set_widget_prop_by_id(widget, prop_key, prop_value, id)
 		else
 			table.insert(w, prop_value)
 		end
+	end
+end
+
+--- Strip a string (trim whitespaces at the beginning and end)
+---@param str str
+---@return str
+function util.strip(str)
+	return str:match("^%s*(.-)%s*$")
+end
+
+--- A wrapper around `get_children_by_id()` to make it easier to use.
+---@param widget wibox.widget._instance
+---@param id string
+---@param callback fun(child: wibox.widget._instance)
+function util.for_children(widget, id, callback)
+	if not widget or not widget.get_children_by_id then
+		return
+	end
+
+	for _, child in pairs(widget:get_children_by_id(id)) do
+		callback(child)
 	end
 end
 

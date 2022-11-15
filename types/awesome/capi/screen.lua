@@ -152,7 +152,7 @@ function cls:get_next_in_direction(dir) end
 --- This method computes the different variants of the "usable" screen geometry.
 ---@param self screen
 ---@param args screen._args.get_bounding_geometry
----@return screen?
+---@return screen._sub._geometry
 function cls:get_bounding_geometry(args) end
 
 --- ## Get the list of visible clients for the screen.

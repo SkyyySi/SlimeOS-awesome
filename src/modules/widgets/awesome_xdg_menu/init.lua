@@ -65,12 +65,12 @@ local function main(args)
 
 		-- Entries related to power management
 		local menu_power = {
-			{ "Lock session", "xdg-screensaver lock", menubar.utils.lookup_icon("system-lock-screen") }, -- loginctl lock-session
-			{ "Shutdown",     "sudo poweroff",        menubar.utils.lookup_icon("system-shutdown") },
-			{ "Reboot",       "sudo reboot",          menubar.utils.lookup_icon("system-reboot") },
-			{ "Suspend",      "systemctl suspend",    menubar.utils.lookup_icon("system-suspend") },
-			{ "Hibernate",    "systemctl hibernate",  menubar.utils.lookup_icon("system-hibernate") },
-			{ "Log out",      function() awesome.quit() end, menubar.utils.lookup_icon("system-log-out") },
+			{ "Lock session", "xdg-screensaver lock",           menubar.utils.lookup_icon("system-lock-screen") }, -- loginctl lock-session
+			{ "Shutdown",     "gnome-session-quit --power-off", menubar.utils.lookup_icon("system-shutdown") },
+			{ "Reboot",       "gnome-session-quit --reboot",    menubar.utils.lookup_icon("system-reboot") },
+			{ "Suspend",      "systemctl suspend",              menubar.utils.lookup_icon("system-suspend") },
+			{ "Hibernate",    "systemctl hibernate",            menubar.utils.lookup_icon("system-hibernate") },
+			{ "Log out",      "gnome-session-quit --logout",    menubar.utils.lookup_icon("system-log-out") },
 		}
 
 		local menu_template = {

@@ -25,6 +25,8 @@ local naughty   = require("naughty") -- Notification library
 local ruled     = require("ruled") -- Declarative object management
 local menubar   = require("menubar")
 
+wibox.layout.overflow = require("wibox_layout_overflow")
+
 ---@type client
 local client = client
 
@@ -53,10 +55,89 @@ function notifyf(format, ...)
 	}
 end
 
-require("modules.lib.bindings")
-
--- {{{ Variable definitions
 local util = require("modules.lib.util")
+
+ruled.notification.connect_signal("request::rules", function()
+	-- All notifications will match this rule.
+	ruled.notification.append_rule {
+		rule       = {},
+		properties = {
+			screen           = awful.screen.preferred,
+			implicit_timeout = 5,
+		}
+	}
+end)
+
+naughty.connect_signal("request::display", function(n)
+	--local font = beautiful.font or ("Sans "..tostring(util.round(util.scale(12))))
+	n.bg = n.bg or beautiful.notification_bg or beautiful.bg_normal or "#202020"
+	if n.urgency == "critical" then
+		n.font = beautiful.monospace_font or ("monospace "..tostring(util.round(util.scale(12))))
+		n.timeout = 0
+		n.bg = beautiful.notification_bg_urgent or beautiful.bg_urgent or "#BB0000"
+	end
+
+	local bg_lightness = util.color.get_lightness(n.bg)
+	n.fg = n.fg or beautiful.notification_fg or beautiful.fg_normal or "#D0D0D0"
+	if bg_lightness > 0.6 then
+		n.fg = beautiful.bg_normal or "#202020"
+	end
+
+	--n.message = n.message.." ("..font..")"
+	local spacing_widget
+	if n.title and n.message and n.title ~= "" and n.message ~= "" then
+		spacing_widget = wibox.widget.separator
+	end
+
+	naughty.layout.box {
+		notification = n,
+		widget_template = {
+			{
+				{
+					{
+						{
+							naughty.widget.icon,
+							{
+								naughty.widget.title,
+								naughty.widget.message,
+								spacing = util.scale(4),
+								spacing_widget = spacing_widget,
+								layout  = wibox.layout.fixed.vertical,
+							},
+							fill_space = true,
+							spacing    = util.scale(4),
+							layout     = wibox.layout.fixed.horizontal,
+						},
+						naughty.list.actions,
+						spacing = (beautiful.corner_radius or util.scale(20)) / 2,
+						layout  = wibox.layout.fixed.vertical,
+					},
+					margins = beautiful.notification_margin or (beautiful.corner_radius or util.scale(20)) / 4,
+					widget  = wibox.container.margin,
+				},
+				--id = "background_role",
+				--bg     = beautiful.notification_bg or beautiful.bg_normal or "#202020",
+				bg = n.bg or beautiful.notification_bg or beautiful.bg_normal or "#202020",
+				shape  = function(cr, w, h)
+					gears.shape.rounded_rect(cr, w, h, (beautiful.corner_radius or util.scale(20)) / 2)
+				end,
+				shape_border_width = util.scale(1),
+				widget = wibox.container.background,
+			},
+			strategy = "max",
+			width    = beautiful.notification_max_width or util.scale(500),
+			widget   = wibox.container.constraint,
+		},
+		shape = function(cr, w, h)
+			gears.shape.rounded_rect(cr, w, h, (beautiful.corner_radius or util.scale(20)) / 2)
+		end,
+		bg = gears.color.transparent,
+	}
+end)
+
+--notify("This is a test notification", 0)
+
+require("modules.lib.bindings")
 
 local globals = require("modules.lib.globals")
 
@@ -82,7 +163,6 @@ pulseaudio()
 --config_auto_reload()
 
 local titlebars = require("modules.widgets.titlebars")
-titlebars()
 
 local kill_all_but_one = require("modules.lib.kill_all_but_one")
 kill_all_but_one {
@@ -115,6 +195,7 @@ spawn_once { "picom",--[[ "--experimental-backends",]] "--config", globals.confi
 spawn_once { "pasystray" }
 spawn_once { "kdeconnect-indicator" }
 spawn_once { "flameshot" }
+spawn_once { "emote" }
 --spawn_once { "gnome-flashback" }
 --spawn_once { "lxqt-session" }
 --spawn_once { os.getenv("HOME").."/.screenlayout/layout.sh" }
@@ -126,6 +207,7 @@ local better_menu = require("modules.widgets.better_menu")
 local global_menu_bar = require("modules.widgets.global_menu_bar")
 local dock = require("modules.widgets.dock")
 local category_launcher = require("modules.widgets.category_launcher")
+local taglist = require("modules.widgets.taglist")
 local tasklist = require("modules.widgets.tasklist")
 -- }}}
 
@@ -155,10 +237,9 @@ menubar.utils.terminal = globals.terminal
 -- Table of layouts to cover with awful.layout.inc, order matters.
 tag.connect_signal("request::default_layouts", function()
 	awful.layout.append_default_layouts({
-		awful.layout.suit.spiral,
-		awful.layout.suit.floating,
 		awful.layout.suit.tile,
-		awful.layout.suit.fair,
+		awful.layout.suit.floating,
+		awful.layout.suit.spiral,
 
 --		awful.layout.suit.floating,
 --		awful.layout.suit.tile,
@@ -240,6 +321,56 @@ local function popup_menu_pro(args)
 	return menu_popup
 end
 
+screen.connect_signal("request::wallpaper", function(s)
+	--[ [
+	-- Wallpaper
+	if beautiful.wallpaper then
+		local wp = beautiful.wallpaper
+
+		-- If wallpaper is a function, call it with the screen
+		if type(wp) == "function" then
+			return wp(s)
+		end
+
+		--gears.wallpaper.maximized(wp, s, true)
+
+		local margin = util.scale(150)
+
+		local wallpaper_widget = beautiful.wallpaper_widget or wibox.widget {
+			{
+				--{
+					image      = wp,
+					resize     = true,
+					halign     = "center",
+					valign     = "center",
+					--clip_shape = function(cr, w, h) gears.shape.rounded_rect(cr, w, h, util.scale(60)) end,
+					opacity    = 1,
+					widget     = wibox.widget.imagebox,
+				--},
+				--margins = margin,
+				--widget  = wibox.container.margin,
+			},
+			--bg = gears.color {
+			--	type  = "linear",
+			--	from  = { 0, 0 },
+			--	to    = { 0, s.geometry.height },
+			--	stops = { { 0, "#404480" }, { 1, "#406480" } },
+			--},
+			bg = "#9FA8DA",
+			widget = wibox.container.background,
+		}
+
+		awful.wallpaper {
+			screen = s,
+			widget = wallpaper_widget
+		}
+	end
+	--]]
+	--awful.spawn { "nitrogen", "--restore" }
+end)
+
+titlebars()
+
 screen.connect_signal("request::desktop_decoration", function(s)
 	-- Disables the wibar on the primary screen
 	--if s == screen.primary then return end
@@ -261,16 +392,16 @@ screen.connect_signal("request::desktop_decoration", function(s)
 		bg       = gears.color.transparent,
 	}
 
-	local corner_radius = s.panels.primary.height / 2
+	local bar_corner_radius = s.panels.primary.height / 2
 	local panel_shape
 	if s.panels.primary.position == "top" then
-		panel_shape = function(cr,w,h) gears.shape.partially_rounded_rect(cr,w,h, false, false, true, true, corner_radius) end
+		panel_shape = function(cr,w,h) gears.shape.partially_rounded_rect(cr,w,h, false, false, true, true, bar_corner_radius) end
 	elseif s.panels.primary.position == "bottom" then
-		panel_shape = function(cr,w,h) gears.shape.partially_rounded_rect(cr,w,h, true, true, false, false, corner_radius) end
+		panel_shape = function(cr,w,h) gears.shape.partially_rounded_rect(cr,w,h, true, true, false, false, bar_corner_radius) end
 	elseif s.panels.primary.position == "left" then
-		panel_shape = function(cr,w,h) gears.shape.partially_rounded_rect(cr,w,h, false, true, true, false, corner_radius) end
+		panel_shape = function(cr,w,h) gears.shape.partially_rounded_rect(cr,w,h, false, true, true, false, bar_corner_radius) end
 	elseif s.panels.primary.position == "right" then
-		panel_shape = function(cr,w,h) gears.shape.partially_rounded_rect(cr,w,h, true, false, false, true, corner_radius) end
+		panel_shape = function(cr,w,h) gears.shape.partially_rounded_rect(cr,w,h, true, false, false, true, bar_corner_radius) end
 	end
 	s.panels.primary.shape = panel_shape
 
@@ -362,27 +493,27 @@ screen.connect_signal("request::desktop_decoration", function(s)
 	}
 
 	-- Create a taglist widget
-	local taglist_old_cursor, taglist_old_wibox
+	--[==[
 	s.widgets.taglist = wibox.widget {
 		{
 			awful.widget.taglist {
 				screen  = s,
 				filter  = awful.widget.taglist.filter.all,
 				buttons = {
-					awful.button({ }, 1, function(t) t:view_only() end),
+					awful.button({}, 1, function(t) t:view_only() end),
 					awful.button({ globals.modkey }, 1, function(t)
 						if client.focus then
 							client.focus:move_to_tag(t)
 						end
 					end),
-					awful.button({ }, 3, awful.tag.viewtoggle),
+					awful.button({}, 3, awful.tag.viewtoggle),
 					awful.button({ globals.modkey }, 3, function(t)
 						if client.focus then
 							client.focus:toggle_tag(t)
 						end
 					end),
-					awful.button({ }, 4, function(t) awful.tag.viewprev(t.screen) end),
-					awful.button({ }, 5, function(t) awful.tag.viewnext(t.screen) end),
+					awful.button({}, 4, function(t) awful.tag.viewprev(t.screen) end),
+					awful.button({}, 5, function(t) awful.tag.viewnext(t.screen) end),
 				},
 				widget_template = {
 					{
@@ -436,6 +567,10 @@ screen.connect_signal("request::desktop_decoration", function(s)
 		},
 		margins = util.scale(2),
 		widget  = wibox.container.margin,
+	}
+	--]==]
+	s.widgets.taglist = taglist {
+		screen = s,
 	}
 
 	-- Create a tasklist widget
@@ -499,52 +634,6 @@ screen.connect_signal("request::desktop_decoration", function(s)
 	s.widgets.keyboardlayout = require("modules.widgets.keyboard_layout_switcher") {
 		--
 	}
-
-	screen.connect_signal("request::wallpaper", function(s)
-		--[ [
-		-- Wallpaper
-		if beautiful.wallpaper then
-			local wp = beautiful.wallpaper
-
-			-- If wallpaper is a function, call it with the screen
-			if type(wp) == "function" then
-				return wp(s)
-			end
-
-			--gears.wallpaper.maximized(wp, s, true)
-
-			local margin = util.scale(150)
-
-			awful.wallpaper {
-				screen = s,
-				widget = {
-					{
-						--{
-							image      = wp,
-							resize     = true,
-							halign     = "center",
-							valign     = "center",
-							--clip_shape = function(cr, w, h) gears.shape.rounded_rect(cr, w, h, util.scale(60)) end,
-							opacity    = 1,
-							widget     = wibox.widget.imagebox,
-						--},
-						--margins = margin,
-						--widget  = wibox.container.margin,
-					},
-					bg = gears.color {
-						type  = "linear",
-						from  = { 0, 0 },
-						to    = { 0, s.geometry.height },
-						stops = { { 0, "#404480" }, { 1, "#406480" } },
-					},
-					--bg = "#9FA8DA",
-					widget = wibox.container.background,
-				}
-			}
-		end
-		--]]
-		--awful.spawn { "nitrogen", "--restore" }
-	end)
 
 	--[[
 	s.widgets.launcher = awful.widget.launcher {
@@ -646,16 +735,20 @@ screen.connect_signal("request::desktop_decoration", function(s)
 		layout = wibox.layout.fixed.horizontal,
 	}
 
+	-- Create a launcher. Since it is created asynchronously and thus does not return
+	-- itself, it doesn't need to be assinged to a variable.
+	--category_launcher {
+	--	screen = s,
+	--	menus  = menus,
+	--}
+	local flexi_launcher_id = s
+	s.widgets.flexi_launcher = category_launcher.flexi_launcher {
+		screen = flexi_launcher_id,
+	}
+
 	local menu_holder = {}
 	awesome.connect_signal("slimeos::menu_is_ready", function(menu)
 		menu_holder.menus = menus
-
-		-- Create a launcher. Since it is created asynchronously and thus does not return
-		-- itself, it doesn't need to be assinged to a variable.
-		category_launcher {
-			screen = s,
-			menus  = menus,
-		}
 
 		for _, child in pairs(s.widgets.launcher:get_children_by_id("background-role")) do
 			buttonify {
@@ -689,8 +782,9 @@ screen.connect_signal("request::desktop_decoration", function(s)
 						--	"-yoffset", tostring(-(height)),
 						--	"-show", "drun",
 						--})
-						awesome.emit_signal("slimeos::toggle_launcher", s)
+						--awesome.emit_signal("slimeos::toggle_launcher", s)
 						--menu.main:toggle()
+						awesome.emit_signal("flexi_launcher::visibility::toggle", flexi_launcher_id)
 					elseif b == 2 then
 						menu.settings:toggle()
 					elseif b == 3 then
@@ -713,8 +807,8 @@ screen.connect_signal("request::desktop_decoration", function(s)
 	s.widgets.textclock = wibox.widget {
 		{
 			s.widgets.textclock_clock,
-			left = util.scale(12),
-			right = util.scale(12),
+			left = util.scale(10),
+			right = util.scale(10),
 			widget = wibox.container.margin,
 		},
 		widget = wibox.container.background,
@@ -726,7 +820,7 @@ screen.connect_signal("request::desktop_decoration", function(s)
 
 	s.widgets.month_calendar = awful.widget.calendar_popup.month {
 		style_header = {
-			shape = function(cr,w,h) gears.shape.rounded_rect(cr,w,h, util.scale(8)) end,
+			shape = function(cr,w,h) gears.shape.rounded_rect(cr,w,h, (beautiful.corner_radius or util.scale(20)) / 2) end,
 			markup = function(text)
 				return util.sstrfmt([[<i> ${text} </i>]], {text = text})
 			end,
@@ -868,24 +962,35 @@ screen.connect_signal("request::desktop_decoration", function(s)
 		widget = wibox.container.background,
 	})
 
-	local maximized_clients = 0
-	client.connect_signal("property::maximized", function(c)
-		if c.screen == s then
-			if c.maximized then
-				maximized_clients = maximized_clients + 1
-			else
-				maximized_clients = maximized_clients - 1
-			end
-		end
+	do
+		--- Make the bar rectangular / remove its shape only if there is
+		--- a maximized and visible client on one of the currently active tags.
 
-		if maximized_clients > 0 then
-			s.panels.primary.shape = gears.shape.rectangle
-			s.panels.primary.widget.shape = gears.shape.rectangle
-		else
+		function s:update_bar_shape()
+			for _, c in pairs(self.clients) do
+				local screen_tags, client_tags = self.selected_tags, c:tags()
+
+				for _, st in ipairs(screen_tags) do
+					for _, ct in ipairs(client_tags) do
+						if st == ct and c.maximized and c:isvisible() then
+							self.panels.primary.shape = gears.shape.rectangle
+							self.panels.primary.widget.shape = gears.shape.rectangle
+							return
+						end
+					end
+				end
+			end
+
 			s.panels.primary.shape = panel_shape
 			s.panels.primary.widget.shape = panel_shape
 		end
-	end)
+
+		client.connect_signal("property::minimized", function(c) s:update_bar_shape() end)
+		client.connect_signal("property::maximized", function(c) s:update_bar_shape() end)
+		for _, t in pairs(s.tags) do
+			t:connect_signal("property::selected", function(c) s:update_bar_shape() end)
+		end
+	end
 
 	--[[ ] ]
 	s.panels.primary.widget = wibox.widget {
@@ -1045,6 +1150,23 @@ screen.connect_signal("request::desktop_decoration", function(s)
 		str = ("%s[%s] = %s,\n"):format(str, k, v)
 	end
 	notify(str) ]]
+
+	--[===[
+	s.panels.top = awful.wibar {
+		position = "top",
+		height   = 100,
+	}
+
+	s.panels.left = awful.wibar {
+		position = "left",
+		width    = 120,
+	}
+
+	s.panels.right = awful.wibar {
+		position = "right",
+		width    = 80,
+	}
+	--]===]
 end)
 -- }}}
 
@@ -1403,24 +1525,6 @@ client.connect_signal("request::titlebars", function(c)
 	end)
 end)
 --]]
--- {{{ Notifications
-
-ruled.notification.connect_signal('request::rules', function()
-	-- All notifications will match this rule.
-	ruled.notification.append_rule {
-		rule       = { },
-		properties = {
-			screen           = awful.screen.preferred,
-			implicit_timeout = 5,
-		}
-	}
-end)
-
-naughty.connect_signal("request::display", function(n)
-	naughty.layout.box { notification = n }
-end)
-
--- }}}
 
 -- -- Center all windows on spawn.
 -- -- Please note that this will also re-center all clients when restarting awesome in-place.
@@ -1435,6 +1539,18 @@ end)
 -- 	--	gears.shape.rounded_rect(cr, w, h, 8)
 -- 	--end
 -- end)
+
+local function update_shape_of(c) ---@param c client._instance
+	if c.maximized or c.fullscreen then
+		c.shape = gears.shape.rectangle
+		awful.spawn {"xprop", "-id", tostring(c.window), "-f", "_PICOM_SHADOW", "32c", "-set", "_PICOM_SHADOW", "0"}
+	elseif c.type == "normal" then
+		c.shape = beautiful.client_shape or function(cr, w, h)
+			gears.shape.rounded_rect(cr, w, h, beautiful.corner_radius or util.scale(20))
+		end
+		awful.spawn {"xprop", "-id", tostring(c.window), "-f", "_PICOM_SHADOW", "32c", "-set", "_PICOM_SHADOW", "1"}
+	end
+end
 
 _PLASMA_PANEL_OFFSET_X = -1920
 client.connect_signal("manage", function(c) ---@param c client._instance
@@ -1483,47 +1599,32 @@ client.connect_signal("manage", function(c) ---@param c client._instance
 		c.focusable = false
 	end
 
-	if c.type == "normal" then
-		c.shape = function(cr, w, h)
-			gears.shape.rounded_rect(cr, w, h, util.scale(20))
-		end
-	end
+	update_shape_of(c)
 
 	--c.x      = sh.program_position.x
 	--c.y      = sh.program_position.y
 	--c.width  = sh.program_size.width
 	--c.height = sh.program_size.height
-end)
+	if c.width  > c.screen.geometry.width  then c.width   = c.width  end
+	if c.height > c.screen.geometry.height then c.height  = c.height end
 
-client.connect_signal("property::fullscreen", function(c)
-	if c.fullscreen then
-		c.shape = gears.shape.rectangle
-	else
-		if c.type == "normal" and not c.maximized then
-			c.shape = function(cr, w, h)
-				gears.shape.rounded_rect(cr, w, h, util.scale(20))
-			end
-		end
+	for s in screen do
+		s:update_bar_shape(c)
 	end
 end)
 
-client.connect_signal("property::maximized", function(c)
-	if c.maximized then
-		c.shape = gears.shape.rectangle
-	else
-		if c.type == "normal" and not c.fullscreen then
-			c.shape = function(cr, w, h)
-				gears.shape.rounded_rect(cr, w, h, util.scale(20))
-			end
-		end
-	end
-end)
+client.connect_signal("property::fullscreen", update_shape_of)
+client.connect_signal("property::maximized",  update_shape_of)
 
 client.connect_signal("property::ontop", function(c)
 	if c.ontop then
+		if not c._old_border_color then
+			c._old_border_color = c.border_color
+		end
 		c.border_color = beautiful.color.current.orange
 	else
-		c.border_color = nil
+		c.border_color = c._old_border_color
+		c._old_border_color = nil
 	end
 end)
 
@@ -1675,3 +1776,154 @@ end
 --]]
 
 --awesome.emit_signal("desktop_grid::load_layout")
+
+do
+	--- A wrapper around `get_children_by_id()` to make it easier to use.
+	---@param widget wibox.widget._instance
+	---@param id string
+	---@param callback fun(child: wibox.widget._instance)
+	local function for_children(widget, id, callback)
+		if not widget or not widget.get_children_by_id then
+			return
+		end
+
+		for _, child in pairs(widget:get_children_by_id(id)) do
+			callback(child)
+		end
+	end
+
+	local function desktop_test(args)
+		args = util.default(args, {})
+		args.screen = args.screen or screen.primary
+
+		local wb_1 = wibox {
+			x = util.scale(10),
+			y = util.scale(10),
+			width  = util.scale(305),
+			height = util.scale(225),
+			visible = false,
+			ontop   = true,
+			widget = {
+				{
+					id = "holder_role",
+					homogeneous = true,
+					expand = false,
+					forced_num_rows = 4,
+					forced_num_cols = 4,
+					spacing = util.scale(5),
+					layout  = wibox.layout.grid,
+				},
+				margins = util.scale(5),
+				widget  = wibox.container.margin,
+			}
+		}
+
+		local wb_2 = wibox {
+			x = util.scale(325),
+			y = util.scale(10),
+			width  = util.scale(305),
+			height = util.scale(225),
+			visible = false,
+			ontop   = true,
+			widget = {
+				{
+					id = "holder_role",
+					homogeneous = true,
+					expand = false,
+					forced_num_rows = 4,
+					forced_num_cols = 4,
+					spacing = util.scale(5),
+					layout  = wibox.layout.grid,
+				},
+				margins = util.scale(5),
+				widget  = wibox.container.margin,
+			}
+		}
+
+		local can_drag, can_drag_start_pos
+		do
+			local widget_store
+			local min_movement_size = util.scale(10)
+
+			can_drag = function()
+				local mouse_state = mouse.coords()
+				return (math.abs(mouse_state.x - can_drag_start_pos.x) > min_movement_size
+					or math.abs(mouse_state.x - can_drag_start_pos.x) < -min_movement_size
+					or math.abs(mouse_state.y - can_drag_start_pos.y) > min_movement_size
+					or math.abs(mouse_state.y - can_drag_start_pos.y) < -min_movement_size)
+			end
+		end
+
+		local function gen_shortcut()
+			local widget = wibox.widget {
+				{
+					{
+						{
+							nil,
+							{
+								id = "shortcut_icon_role",
+								halign = "center",
+								widget = wibox.widget.imagebox,
+							},
+							{
+								id = "shortcut_name_role",
+								widget = wibox.widget.textbox,
+							},
+							layout = wibox.layout.align.vertical,
+						},
+						margins = util.scale(5),
+						widget  = wibox.container.margin,
+					},
+					id = "background_role",
+					shape  = function(cr, w, h)
+						gears.shape.rounded_rect(cr, w, h, util.scale(5))
+					end,
+					shape_border_width = util.scale(1),
+					shape_border_color = "#FFFFFF",
+					widget = wibox.container.background,
+				},
+				strategy = "max",
+				forced_width  = util.scale(70),
+				forced_height = util.scale(50),
+				widget = wibox.container.constraint,
+			}
+
+			for_children(widget, "shortcut_icon_role", function(child)
+				child.image = beautiful.awesome_icon
+			end)
+
+			for_children(widget, "shortcut_name_role", function(child)
+				child.text = "Shortcut"
+			end)
+
+			for_children(widget, "background_role", function(child)
+				buttonify {
+					widget = child,
+					button_callback_press = function(c, b)
+						can_drag_start_pos = mouse.coords()
+						notify("Grabbing now")
+						mousegrabber.run(function(buttons)
+							notify("Still holding on")
+						end, "hand1")
+					end,
+					button_callback_release = function(c, b)
+						notify(can_drag())
+						can_drag_start_pos = nil
+						mousegrabber.stop()
+						notify("Released")
+					end,
+				}
+			end)
+
+			return widget
+		end
+
+		for_children(wb_1.widget, "holder_role", function(child)
+			for i = 1, 14 do
+				child:add(gen_shortcut())
+			end
+		end)
+	end
+
+	desktop_test()
+end

@@ -39,7 +39,7 @@ awful.keyboard.append_global_keybindings({
 			  {description = "show main menu", group = "awesome"}),
 	awful.key({ globals.modkey, "Control" }, "r", awesome.restart,
 			  {description = "reload awesome", group = "awesome"}),
-	awful.key({ globals.modkey, "Shift"   }, "q", awesome.quit,
+	awful.key({ globals.modkey, "Shift"   }, "q", function() awful.spawn { "gnome-session-quit", "--logout" } end,
 			  {description = "quit awesome", group = "awesome"}),
 	awful.key({ globals.modkey }, "x",
 			  function ()

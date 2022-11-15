@@ -5,7 +5,7 @@ local gears = require("gears")
 local g = {} ---@type table<string, string|number|boolean|string[]>
 
 g.config_dir = gears.filesystem.get_configuration_dir() ---@type string
-g.scaling_factor = 1 ---@type number
+g.scaling_factor = 0.7 ---@type number
 g.language = "en_US" ---@type string
 g.enabled_keyboard_layouts = {"de", "us"} ---@type string[]
 g.keyboard_layout = g.enabled_keyboard_layouts[1] ---@type string

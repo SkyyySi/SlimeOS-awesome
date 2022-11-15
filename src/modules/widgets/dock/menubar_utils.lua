@@ -125,7 +125,8 @@ local all_icon_sizes = {
     '32x32',
     '24x24',
     '22x22',
-    '16x16'
+    '16x16',
+    'symbolic',
 }
 
 --- List of supported icon exts.
@@ -133,9 +134,9 @@ local supported_icon_file_exts = { png = 1, xpm = 2, svg = 3 }
 
 local icon_lookup_path = nil
 
---- Get a list of icon lookup paths.
+--- Get a list of icon lookup paths, uncached.
 -- @treturn table A list of directories, without trailing slash.
-local function get_icon_lookup_path()
+function utils.get_icon_lookup_paths_uncached()
     if icon_lookup_path then return icon_lookup_path end
 
     local function ensure_args(t, paths)
@@ -178,24 +179,33 @@ local function get_icon_lookup_path()
 
     local icon_theme_paths = {}
     for _, theme_dir in ipairs(theme_priority) do
-        add_if_readable(icon_theme_paths,
-                        add_with_dir({}, paths, theme_dir))
+        add_if_readable(icon_theme_paths, add_with_dir({}, paths, theme_dir))
     end
 
     local app_in_theme_paths = {}
     for _, icon_theme_directory in ipairs(icon_theme_paths) do
         for _, size in ipairs(all_icon_sizes) do
-            table.insert(app_in_theme_paths,
-                         glib.build_filenamev({ icon_theme_directory,
-                                                size, 'apps' }))
-            table.insert(app_in_theme_paths,
-                         glib.build_filenamev({ icon_theme_directory,
-                                                size, 'categories' }))
+            for _, icon_type in ipairs { "actions", "animations", "apps", "categories", "devices", "emblems", "emotes", "mimetypes", "panel", "places", "status" } do
+                table.insert(app_in_theme_paths, glib.build_filenamev { icon_theme_directory, size, icon_type })
+            end
         end
     end
     add_if_readable(icon_lookup_path, app_in_theme_paths)
 
     return add_if_readable(icon_lookup_path, paths)
+end
+
+do
+    local icon_lookup_paths_cache
+    --- Get a list of icon lookup paths.
+    -- @treturn table A list of directories, without trailing slash.
+    function utils.get_icon_lookup_paths()
+        if not icon_lookup_paths_cache then
+            icon_lookup_paths_cache = utils.get_icon_lookup_paths_uncached()
+        end
+
+        return icon_lookup_paths_cache
+    end
 end
 
 --- Remove CR newline from the end of the string.
@@ -225,7 +235,7 @@ function utils.lookup_icon_uncached(icon_file)
         return gfs.file_readable(icon_file) and icon_file or nil
     else
         -- Look for the requested file in the lookup path
-        for _, directory in ipairs(get_icon_lookup_path()) do
+        for _, directory in ipairs(utils.get_icon_lookup_paths()) do
             local possible_file = directory .. "/" .. icon_file
             -- Check to see if file exists if requested with a valid extension
             if supported_icon_file_exts[icon_file_ext] and gfs.file_readable(possible_file) then
@@ -372,15 +382,7 @@ function utils.parse_desktop_file(file)
     return program
 end
 
---- Parse a directory with .desktop files recursively.
--- @tparam string dir_path The directory path.
--- @tparam function callback Will be fired when all the files were parsed
--- with the resulting list of menu entries as argument.
--- @tparam table callback.programs Paths of found .desktop files.
--- @staticfct menubar.utils.parse_dir
--- @noreturn
-function utils.parse_dir(dir_path, callback)
-
+do
     local function get_readable_path(file)
         return file:get_path() or file:get_uri()
     end
@@ -424,11 +426,21 @@ function utils.parse_dir(dir_path, callback)
         enum:async_close()
     end
 
-    gio.Async.start(do_protected_call)(function()
-        local result = {}
-        parser(gio.File.new_for_path(dir_path), result)
-        call_callback(callback, result)
-    end)
+    --- Parse a directory with .desktop files recursively.
+    -- @tparam string dir_path The directory path.
+    -- @tparam function callback Will be fired when all the files were parsed
+    -- with the resulting list of menu entries as argument.
+    -- @tparam table callback.programs Paths of found .desktop files.
+    -- @staticfct menubar.utils.parse_dir
+    -- @noreturn
+    function utils.parse_dir(dir_path, callback)
+
+        gio.Async.start(do_protected_call)(function()
+            local result = {}
+            parser(gio.File.new_for_path(dir_path), result)
+            call_callback(callback, result)
+        end)
+    end
 end
 
 -- luacov: disable

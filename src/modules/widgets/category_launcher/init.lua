@@ -1,3 +1,14 @@
+local require = require
+local table = table
+local pairs = pairs
+local ipairs = ipairs
+local math = math
+local pcall = pcall
+local setmetatable = setmetatable
+local getmetatable = getmetatable
+local next = next
+local os = os
+
 local awful     = require("awful")
 local gears     = require("gears")
 local wibox     = require("wibox")
@@ -59,74 +70,104 @@ local function search_highlight(str, pattern)
 end
 
 local all_apps = {}
-local all_apps_mt = { is_generated = false }
+local all_apps_mt = {}
 all_apps_mt.__index = all_apps_mt
 setmetatable(all_apps, all_apps_mt)
-function all_apps_mt:update(fn)
-	if self.is_generated then
-		self.is_generated = false
-		for k, v in pairs(self) do
-			self[k] = nil
+
+function all_apps_mt:is_empty()
+	return next(self) == nil
+end
+
+function all_apps_mt:update(fn, do_not_regenerate)
+	if not self:is_empty() and do_not_regenerate then
+		fn(self)
+		return
+	end
+
+	local app_dirs = {}
+	do
+		local data_dirs = gears.filesystem.get_xdg_data_dirs()
+		for k, dir in ipairs(data_dirs) do
+			--- Clean the paths to always be in `/foo/bar/biz/baz` format
+			data_dirs[k] = dir:gsub("[/]+", "/"):gsub("[/]+$", "")
+		end
+
+		do
+			local share_dir = os.getenv("HOME").."/.local/share"
+			local has_dir = false
+			for _, dir in ipairs(data_dirs) do
+				if dir == share_dir then
+					has_dir = true
+					break
+				end
+			end
+			if not has_dir then
+				table.insert(data_dirs, 1, share_dir)
+			end
+		end
+
+		do
+			local share_dir = "/usr/share"
+			local has_dir = false
+			for _, dir in ipairs(data_dirs) do
+				if dir == share_dir then
+					has_dir = true
+					break
+				end
+			end
+			if not has_dir then
+				table.insert(data_dirs, share_dir)
+			end
+		end
+
+		for _, dir in ipairs(data_dirs) do
+			table.insert(app_dirs, dir.."/applications/")
 		end
 	end
 
-	menubar_utils.parse_dir("/usr/share/applications", function(system_apps)
-		menubar_utils.parse_dir(os.getenv("HOME").."/.local/share/applications", function(user_apps)
-			local apps = {}
-			local sorted_app_names = {}
+	local function assemble_app_list(apps)
+		for k, _ in pairs(self) do
+			self[k] = nil
+		end
 
-			for k, v in ipairs(system_apps) do
-				sorted_app_names[#sorted_app_names + 1] = k
-				apps[#apps + 1] = v
+		--- Remove all desktop entries that aren't supposed to be shown
+		for _, app in ipairs(apps) do
+			if app.show then
+				table.insert(self, app)
 			end
+		end
 
-			for k, v in ipairs(user_apps) do
-				sorted_app_names[#sorted_app_names + 1] = k
-				apps[#apps + 1] = v
-			end
-
-			-- TODO: Remove apps with .NoDisplay = true
-
-			table.sort(sorted_app_names)
-
-			local tmp = {}
-			for _, k in ipairs(sorted_app_names) do
-				if apps[k].show then
-					table.insert(tmp, apps[k])
-				end
-			end
-			for k, v in ipairs(tmp) do
-				local do_insert = true
-				for k2, v2 in pairs(self) do
-					if v == v2 then
-						do_insert = false
-					end
-				end
-				if do_insert then
-					table.insert(self, v)
-				end
-			end
-
-			getmetatable(self).is_generated = true
-
-			local dump_table = {}
-			for _, app in pairs(self) do
-				dump_table[#dump_table+1] = app.Name
-			end
-			util.dump_to_file(tts(apps), "/tmp/apps.lua")
-
-			fn(self)
+		table.sort(self, function(a, b)
+			return (a.Name or "") < (b.Name or "")
 		end)
-	end)
+
+		fn(self)
+	end
+
+	do
+		local parsed_apps = {}
+		local function proceed(k)
+			menubar_utils.parse_dir(app_dirs[k], function(parsed_apps_temp)
+				parsed_apps = gears.table.join(parsed_apps, parsed_apps_temp)
+				local next_k, next_v = next(app_dirs, k)
+				if next_v then
+					proceed(next_k)
+				else
+					assemble_app_list(parsed_apps)
+				end
+			end)
+		end
+		proceed(1)
+	end
 end
 
 function all_apps_mt:filter(pattern)
 	local matches = {}
 	setmetatable(matches, getmetatable(self))
 
-	for k, v in pairs(self) --[[ or (v.Comment ~= nil and v.Comment:match(pattern)) ]] do
-		if (v.Name ~= nil and v.Name:match(pattern)) then
-			table.insert(matches, v)
+	for k, app in ipairs(self) --[[ or (v.Comment ~= nil and v.Comment:match(pattern)) ]] do
+		if app.Name ~= nil and app.Name:match(pattern) then
+			table.insert(matches, app)
 		end
 	end
 
@@ -134,11 +175,12 @@ function all_apps_mt:filter(pattern)
 end
 
 function all_apps_mt:run(fn)
-	if not self.is_generated then
+	if self:is_empty() then
 		self:update(fn)
-	else
-		fn(self)
+		return
 	end
+
+	fn(self)
 end
 
 all_apps_mt._return_key_mt = { --- If no icon is defined, just return the input
@@ -164,6 +206,8 @@ all_apps_mt.category_icon_map = setmetatable({
 	System      = "applications-system",
 	Utility     = "applications-utilities",
 	Other       = "applications-other",
+
+	Wine        = "wine",
 }, all_apps_mt._return_key_mt)
 
 all_apps_mt.category_id_map = setmetatable({
@@ -184,6 +228,42 @@ all_apps_mt.category_id_map = setmetatable({
 	Utility     = "applications-utilities",
 	Other       = "applications-other",
 }, all_apps_mt._return_key_mt)
+
+all_apps_mt.category_name_map = setmetatable({
+	All         = "All",
+	Favorites   = "Favorites",
+	Recent      = "Recent",
+
+	AudioVideo  = "Multimedia",
+	Development = "Development",
+	Education   = "Education",
+	Game        = "Games",
+	Graphics    = "Graphics",
+	Network     = "Internet",
+	Office      = "Office",
+	Science     = "Science",
+	Settings    = "Settings",
+	System      = "System",
+	Utility     = "Utilities",
+	Other       = "Other",
+
+	Wine        = "Wine",
+}, all_apps_mt._return_key_mt)
+
+do
+	local i = 0
+
+	function all_apps_mt:__call()
+		i = i + 1
+
+		if not self[i] then
+			i = 0
+			return
+		end
+
+		return self[i]
+	end
+end
 
 function all_apps_mt:fuzzy_find_app(matcher_string)
 	local found_matches = {}
@@ -220,17 +300,429 @@ end
 
 --notify(tts(menubar.menu_gen.all_categories), 0)
 
+awesome.connect_signal("all_apps::get", function(cb)
+	all_apps:update(cb, true)
+end)
+
+--- A wrapper around `get_children_by_id()` to make it easier to use.
+---@param widget wibox.widget._instance
+---@param id string
+---@param callback fun(child: wibox.widget._instance)
+local function for_children(widget, id, callback)
+	if not widget or not widget.get_children_by_id then
+		return
+	end
+
+	for _, child in pairs(widget:get_children_by_id(id)) do
+		callback(child)
+	end
+end
+
+local function nop() end
+
+local function flexi_launcher(args)
+	args = util.default(args, {})
+	args.auto_close = util.default(args.auto_close, false) --- Automatically close wheneven the cursor leaves the container
+	args.id = util.default(args.id, args.screen) --- Used to summon it with a signal, in order to allow as many different launchers as the user desires
+
+	args.app_template = args.app_template --- For each individual app, like Firefox, VLC, VScode, etc.
+	args.widget_template = args.widget_template --- For the wibox.widget that'll hold the apps
+	args.container = util.default(args.container, awful.popup) --- A container box, must have an API similar to a wibox, like awful.popup
+	args.container_template = args.container_template --- Template for the wibox/popup/bar/etc.
+
+	--- TODO: These two should be passed with the signal to show the widget,
+	--- which would mean that we'd only need to create one instance for multiple screens.
+	args.screen = util.default(args.screen, screen.primary)
+	args.placement_fn = util.default(args.placement_fn, function(w) awful.placement.centered(w, { honor_workarea = true }) end)
+
+	--- IMPORTANT: Although this is returned, you should not rely on it being populated
+	--- immediatly. Instead, you should use a callback. This is, however, OK to use
+	--- if your code is written with that in mind, for example when accessing it lazily
+	--- (in that case, make sure to check that `fl.generated` == true).
+	local fl = {
+		generated = false,
+		show = nop,
+		hide = nop,
+		toggle = nop,
+	}
+
+	all_apps:run(function(apps) ---@param apps FreeDesktop.desktop_entry[]
+		---@type table<string, {apps: FreeDesktop.desktop_entry[], name: string, icon?: string}>
+		fl.category_names = {
+			"AudioVideo",
+			"Development",
+			"Education",
+			"Game",
+			"Graphics",
+			"Network",
+			"Office",
+			"Science",
+			"Settings",
+			"System",
+			"Utility",
+			"Wine",
+			"Other",
+		}
+
+		fl.all_apps = apps
+
+		---@param fn fun(name: string)
+		function fl.for_category_names(fn)
+			for _, name in ipairs(fl.category_names) do
+				fn(name)
+			end
+		end
+
+		fl.categories = {}
+		fl.for_category_names(function(cat)
+			fl.categories[cat] = {}
+			fl.categories[cat].apps = {}
+			fl.categories[cat].name = all_apps.category_name_map[cat]
+			fl.categories[cat].icon = menubar_utils.lookup_icon(all_apps.category_icon_map[cat])
+		end)
+
+		for app in apps do
+			if app.Categories then
+				for _, app_category in pairs(app.Categories) do
+					if fl.categories[app_category] then
+						table.insert(fl.categories[app_category].apps, app)
+					end
+				end
+			elseif app.file:match("/wine/") then
+				table.insert(fl.categories.Wine.apps, app)
+			else
+				table.insert(fl.categories.Other.apps, app)
+			end
+		end
+
+		for _, category in pairs(fl.categories) do
+			table.sort(category.apps, function(a, b)
+				return a.Name < b.Name
+			end)
+		end
+
+		--- Assemple a table to serve as a structure for `awful.menu`.
+		--- It won't be further used by this widget from here on, but
+		--- I think it's better to consistently generate it in here
+		--- rather than ending up with everyone needing to implement
+		--- it themselves.
+		---
+		--- Usage:
+		---
+		--- ```
+		--- local my_menu = awful.menu { items = flexi_launcher.menu_items }
+		--- ```
+		do
+			local submenus = {}
+			fl.for_category_names(function(name)
+				submenus[name] = {}
+				for _, app in pairs(fl.categories[name].apps) do
+					table.insert(submenus[name], { app.Name, function() awful.spawn(app.cmdline) end, app.icon_path })
+				end
+			end)
+
+			fl.menu_items = {
+				{
+					"Awesome",
+					{
+						{ "Show hotkeys", function() awful.hotkeys_popup.show_help(nil, awful.screen.focused()) end, menubar_utils.lookup_icon("input-keyboard-symbolic") },
+						{ "Show manual", (terminal or "xterm") .. " -e man awesome",                                 menubar_utils.lookup_icon("help-info-symbolic") },
+						{ "Edit config", (editor or "xterm -e nano") .. " " .. globals.config_dir,                   menubar_utils.lookup_icon("edit-symbolic") },
+						{ "Restart awesome", awesome.restart,                                                        menubar_utils.lookup_icon("system-restart-symbolic") },
+						{ "Quit awesome", function() awesome.quit() end,                                             menubar_utils.lookup_icon("application-exit-symbolic") },
+					},
+					beautiful.awesome_icon,
+				},
+				{ "Power",
+					{
+						{ "Lock session", "xdg-screensaver lock",           menubar_utils.lookup_icon("system-lock-screen") }, -- loginctl lock-session
+						{ "Shutdown",     "gnome-session-quit --power-off", menubar_utils.lookup_icon("system-shutdown") },
+						{ "Reboot",       "gnome-session-quit --reboot",    menubar_utils.lookup_icon("system-reboot") },
+						{ "Suspend",      "systemctl suspend",              menubar_utils.lookup_icon("system-suspend") },
+						{ "Hibernate",    "systemctl hibernate",            menubar_utils.lookup_icon("system-hibernate") },
+						{ "Log out",      "gnome-session-quit --logout",    menubar_utils.lookup_icon("system-log-out") },
+					},
+					menubar_utils.lookup_icon("system-shutdown-symbolic"),
+				},
+				{ "-----------" },
+				{ fl.categories.AudioVideo.name,  submenus.AudioVideo,  fl.categories.AudioVideo.icon,  },
+				{ fl.categories.Development.name, submenus.Development, fl.categories.Development.icon, },
+				{ fl.categories.Education.name,   submenus.Education,   fl.categories.Education.icon,   },
+				{ fl.categories.Game.name,        submenus.Game,        fl.categories.Game.icon,        },
+				{ fl.categories.Graphics.name,    submenus.Graphics,    fl.categories.Graphics.icon,    },
+				{ fl.categories.Network.name,     submenus.Network,     fl.categories.Network.icon,     },
+				{ fl.categories.Office.name,      submenus.Office,      fl.categories.Office.icon,      },
+				{ fl.categories.Science.name,     submenus.Science,     fl.categories.Science.icon,     },
+				{ fl.categories.Settings.name,    submenus.Settings,    fl.categories.Settings.icon,    },
+				{ fl.categories.System.name,      submenus.System,      fl.categories.System.icon,      },
+				{ fl.categories.Utility.name,     submenus.Utility,     fl.categories.Utility.icon,     },
+				{ fl.categories.Wine.name,        submenus.Wine,        fl.categories.Wine.icon,        },
+				{ fl.categories.Other.name,       submenus.Other,       fl.categories.Other.icon,       },
+			}
+
+			fl.awful_menu = awful.menu { items = fl.menu_items }
+		end
+
+		local function gen_app_button(app, parent)
+			local widget = wibox.widget(args.app_template or {
+				{
+					{
+						{
+							id     = "app-icon-role",
+							widget = wibox.widget.imagebox,
+						},
+						{
+							{
+								id     = "app-title-role",
+								halign = "left",
+								valign = "center",
+								widget = wibox.widget.textbox,
+							},
+							{
+								{
+									id     = "app-description-role",
+									halign = "left",
+									valign = "center",
+									widget = wibox.widget.textbox,
+								},
+								fg     = util.color.alter(beautiful.fg_normal, { a = 0.7 }),
+								widget = wibox.container.background,
+							},
+							layout  = wibox.layout.fixed.vertical,
+						},
+						spacing       = util.scale(10),
+						forced_height = util.scale(35),
+						layout        = wibox.layout.fixed.horizontal,
+					},
+					margins = util.scale(5),
+					widget  = wibox.container.margin,
+				},
+				id     = "background-role",
+				shape  = function(cr, w, h)
+					gears.shape.rounded_rect(cr, w, h, util.scale(10))
+				end,
+				widget = wibox.container.background,
+			})
+
+			for_children(widget, "app-icon-role", function(child)
+				child.image = app.icon_path
+			end)
+
+			for_children(widget, "app-title-role", function(child)
+				child.markup = app.Name
+			end)
+
+			for_children(widget, "app-description-role", function(child)
+				if app.Comment and app.Comment ~= "" then
+					child.markup = "<i>"..app.Comment.."</i>"
+				else
+					child.forced_heigth = 0
+				end
+			end)
+
+			local right_click_menu_items = {}
+			if app.file then
+				local desktop_file_name = app.file:match(".*/(.*%.desktop)$")
+				table.insert(right_click_menu_items, {
+					"Pin to dock",
+					function()
+						awesome.emit_signal("slimeos::dock::favorites::add", desktop_file_name)
+					end,
+				})
+
+				if app.actions_table and next(app.actions_table) ~= nil then
+					table.insert(right_click_menu_items, { "-----------" })
+				end
+			end
+
+			if app.actions_table and next(app.actions_table) ~= nil then
+				for _, action in pairs(app.actions_table) do
+					table.insert(right_click_menu_items, { action.Name, function() awful.spawn(action.Exec:gsub("%%.*", "")) end, action.Icon })
+				end
+			end
+
+			local right_click_menu = awful.menu {
+				items = right_click_menu_items,
+			}
+
+			awesome.connect_signal("flexi_launcher::collapse_right_click_menus_except", function(menu)
+				if right_click_menu ~= menu then
+					right_click_menu:hide()
+				end
+			end)
+
+			for_children(widget, "background-role", function(child)
+				buttonify {
+					widget = child,
+					button_callback_release = function(w, b)
+						if b == 1 then
+							awful.spawn(app.cmdline)
+							awesome.emit_signal("flexi_launcher::visibility::hide", args.id)
+						elseif b == 3 then
+							awesome.emit_signal("flexi_launcher::collapse_right_click_menus_except", right_click_menu)
+							right_click_menu:show()
+						elseif b == 4 or b == 5 then
+							for _, app_button in pairs(parent.children) do
+								for_children(app_button, "background-role", function(background_widget)
+									background_widget.bg = gears.color.transparent
+								end)
+							end
+						end
+					end,
+				}
+			end)
+
+			return widget
+		end
+
+		local function gen_widget()
+			local widget = wibox.widget(util.default(args.widget_template, {
+				{
+					id            = "button-holder-role",
+					homogeneous   = true,
+					expand        = true,
+					orientation   = "vertical",
+					spacing       = util.scale(5),
+					min_cols_size = util.scale(160),
+					forced_width  = util.scale(160),
+					layout        = wibox.layout.grid,
+				}
+			}))
+
+			function widget:add_app(app)
+				for_children(widget, "button-holder-role", function(child)
+					child:app(app)
+				end)
+			end
+
+			return widget
+		end
+
+		--[[ Test code; to be removed
+		do
+			local wb = wibox {
+				type    = "desktop",
+				width   = 800,
+				height  = 800,
+				visible = true,
+				beind   = true,
+				shape   = function(cr, w, h) gears.shape.rounded_rect(cr, w, h, util.scale(5)) end,
+				bg      = gears.color.transparent,
+				widget  = {
+					{
+						{
+							{
+								id            = "app-holder-role",
+								orientation   = "vertical",
+								min_cols_size = util.scale(160),
+								spacing       = util.scale(10),
+								layout        = wibox.layout.grid,
+							},
+							layout = wibox.layout.overflow.vertical,
+						},
+						marings = util.scale(10),
+						widget  = wibox.container.margin,
+					},
+					bg     = "#000A",
+					shape  = function(cr, w, h) gears.shape.rounded_rect(cr, w, h, util.scale(5)) end,
+					widget = wibox.container.background,
+				}
+			}
+			awful.placement.centered(wb)
+
+			for_children(wb.widget, "app-holder-role", function(child)
+				for _, app in ipairs(fl.all_apps) do
+					child:add(gen_app_button(app, wb.widget))
+				end
+			end)
+		end
+		--]]
+
+		do
+			local function shape(cr, w, h)
+				gears.shape.rounded_rect(cr, w, h, util.scale(20))
+			end
+
+			fl.container = args.container(util.default(args.container_template, {
+				width   = util.scale(500),
+				height  = util.scale(700),
+				ontop   = true,
+				visible = false,
+				screen  = args.screen,
+				bg      = gears.color.transparent,
+				shape   = shape,
+				widget  = {
+					{
+						{
+							text   = "PLACEHOLDER",
+							widget = wibox.widget.textbox,
+						},
+						margins = util.scale(20),
+						widget  = wibox.container.margin,
+					},
+					bg     = beautiful.bg_normal,
+					shape  = shape,
+					widget = wibox.container.background,
+				},
+			}))
+		end
+
+		function fl:show(placement_fn)
+			fl.awful_menu:show()
+			self.visible = true
+			--self.container.visible = true
+			(placement_fn or args.placement_fn)(self.container)
+		end
+
+		function fl:hide()
+			fl.awful_menu:hide()
+			self.visible = false
+			--self.container.visible = false
+		end
+
+		function fl:toggle()
+			if self.visible then
+				self:hide()
+			else
+				self:show()
+			end
+		end
+
+		awesome.connect_signal("flexi_launcher::visibility::show", function(id, placement_fn)
+			if id == args.id then
+				fl:show(placement_fn)
+			end
+		end)
+
+		awesome.connect_signal("flexi_launcher::visibility::hide", function(id)
+			if id == args.id then
+				fl:hide()
+			end
+		end)
+
+		awesome.connect_signal("flexi_launcher::visibility::toggle", function(id)
+			if id == args.id then
+				fl:toggle()
+			end
+		end)
+
+		fl.generated = true
+	end)
+
+	return fl
+end
+
 local function category_launcher(args)
 	args = util.default(args, {})
 	args = {
 		screen = util.default(args.screen, screen.primary),
-		auto_close = util.default(args.auto_close, true),
+		auto_close = util.default(args.auto_close, false),
 	}
 
 	-- TODO: Switch away from automatic category detection and use https://specifications.freedesktop.org/menu-spec/latest/apa.html instead
 
 	all_apps:run(function(apps) ---@param apps FreeDesktop.desktop_entry[]
-		util.dump_to_file(tts(apps), "/tmp/apps.lua")
+		--util.dump_to_file(tts(apps), "/tmp/apps.lua")
 		---@type string[]
 		local category_names = {
 			"AudioVideo",  "Development", "Education",
@@ -273,11 +765,18 @@ local function category_launcher(args)
 					--	break
 					--end
 				end
+			else
+				table.insert(categorized_apps.Other, app)
 			end
 
 			app.category = app.category or "Other"
 
 			--categorized_apps[app.category][#(categorized_apps[app.category]) + 1] = app
+		end
+		for _, cat in pairs(categorized_apps) do
+			table.sort(categorized_apps, function(a, b)
+				return a.Name < b.Name
+			end)
 		end
 		table.sort(category_names)
 
@@ -301,7 +800,7 @@ local function category_launcher(args)
 				elseif app.Exec then
 					cmd = app.Exec:match("(.+)%%")
 				end
-				table.insert(subm, { app.Name, cmd, app.Icon })
+				table.insert(subm, { app.Name, cmd, app.icon_path,  app = app })
 			end
 
 			-- TODO Add a proper categorization
@@ -326,13 +825,20 @@ local function category_launcher(args)
 
 		local rasti_menu_wibox_subwidgets = {}
 
-		local function create_app_entry(app_name, app_icon, app_cmd, container_grid)
-			local app_widget_icon
+		local function create_app_entry(args)
+			args = args or {}
+			args.name = args.name or ""
+			args.icon = args.icon or ""
+			args.cmd  = args.cmd  or ""
+			args.actions = args.actions or {}
+			args.app = args.app or {}
+			args.parent_grid = args.parent_grid
 
-			if app_icon then
+			local app_widget_icon
+			if args.icon then
 				app_widget_icon = wibox.widget {
 					{
-						image  = app_icon,
+						image  = args.icon,
 						widget = wibox.widget.imagebox,
 					},
 					right  = util.scale(10),
@@ -345,7 +851,7 @@ local function category_launcher(args)
 					{
 						app_widget_icon,
 						{
-							markup = app_name,
+							markup = args.name,
 							halign = "left",
 							valign = "center",
 							widget = wibox.widget.textbox,
@@ -362,14 +868,48 @@ local function category_launcher(args)
 				widget = wibox.container.background,
 			}
 
+			local right_click_menu_items = {}
+			if args.app.file then
+				local desktop_file_name = args.app.file:match(".*/(.*%.desktop)$")
+				table.insert(right_click_menu_items, {
+					"Pin to dock",
+					function()
+						awesome.emit_signal("slimeos::dock::favorites::add", desktop_file_name)
+					end,
+				})
+
+				if args.app.actions_table and next(args.app.actions_table) ~= nil then
+					table.insert(right_click_menu_items, { "-----------" })
+				end
+			end
+
+			if args.app.actions_table and next(args.app.actions_table) ~= nil then
+				for k, v in pairs(args.app.actions_table) do
+					table.insert(right_click_menu_items, { v.Name, function() awful.spawn(v.Exec:gsub("%%.*", "")) end, v.Icon })
+				end
+			end
+
+			local right_click_menu = awful.menu {
+				items = right_click_menu_items,
+			}
+
+			awesome.connect_signal("category_launcher::collapse_right_click_menus_except", function(menu)
+				if right_click_menu ~= menu then
+					right_click_menu:hide()
+				end
+			end)
+
 			buttonify {
 				app_widget,
 				button_callback_release = function(w, b)
 					if b == 1 then
-						awful.spawn(app_cmd)
+						awful.spawn(args.cmd)
 						rasti_menu_wibox:hide()
+					elseif b == 3 then
+						awesome.emit_signal("category_launcher::collapse_right_click_menus_except", right_click_menu)
+						right_click_menu:show()
 					elseif b == 4 or b == 5 then
-						for _, child in pairs(container_grid.children) do
+						for _, child in pairs(args.parent_grid.children) do
 							child.widget.bg = gears.color.transparent
 						end
 					end
@@ -388,7 +928,7 @@ local function category_launcher(args)
 		local search_prompt_is_running = false
 		local search_prompt_app_list_grid = wibox.widget {
 			homogeneous   = true,
-			expand        = false,
+			expand        = true,
 			orientation   = "vertical",
 			spacing       = util.scale(5),
 			min_cols_size = util.scale(160),
@@ -462,7 +1002,13 @@ local function category_launcher(args)
 							elseif app.Exec then
 								cmd = app.Exec:match("(.+)%%")
 							end
-							local app_widget = create_app_entry(search_highlight(input, app.Name), menubar_utils.lookup_icon(app.Icon or ""), cmd, search_prompt_app_list_grid)
+							local app_widget = create_app_entry {
+								name = search_highlight(input, app.Name),
+								icon = app.icon_path,
+								cmd = cmd,
+								parent_grid = search_prompt_app_list_grid,
+								app = app,
+							}
 
 							search_prompt_app_list_grid:add(app_widget)
 						end
@@ -540,7 +1086,7 @@ local function category_launcher(args)
 
 		rasti_menu_wibox_subwidgets.category_switcher_grid = wibox.widget {
 			homogeneous = true,
-			expand      = false,
+			expand      = true,
 			orientation = "vertical",
 			spacing     = util.scale(5),
 			min_cols_size = util.scale(160),
@@ -558,7 +1104,7 @@ local function category_launcher(args)
 
 			local app_list_widget_grid = wibox.widget {
 				homogeneous = true,
-				expand      = false,
+				expand      = true,
 				orientation = "vertical",
 				spacing     = util.scale(5),
 				layout      = wibox.layout.grid,
@@ -617,7 +1163,13 @@ local function category_launcher(args)
 				}
 				--]]
 
-				local app_widget = create_app_entry(app_name, app_icon, app_cmd, app_list_widget_grid)
+				local app_widget = create_app_entry {
+					name = app_name,
+					icon = app_icon,
+					cmd = app_cmd,
+					parent_grid = app_list_widget_grid,
+					app = app.app,
+				}
 
 				app_list_widget_grid:add(app_widget)
 			end
@@ -805,12 +1357,12 @@ local function category_launcher(args)
 
 		local power_menu = awful.menu {
 			items = {
-				{ "Lock session", "xdg-screensaver lock", menubar_utils.lookup_icon("system-lock-screen") }, -- loginctl lock-session
-				{ "Shutdown",     "sudo poweroff",        menubar_utils.lookup_icon("system-shutdown") },
-				{ "Reboot",       "sudo reboot",          menubar_utils.lookup_icon("system-reboot") },
-				{ "Suspend",      "systemctl suspend",    menubar_utils.lookup_icon("system-suspend") },
-				{ "Hibernate",    "systemctl hibernate",  menubar_utils.lookup_icon("system-hibernate") },
-				{ "Log out",      function() awesome.exit() end, menubar_utils.lookup_icon("system-log-out") },
+				{ "Lock session", "xdg-screensaver lock",           menubar_utils.lookup_icon("system-lock-screen") }, -- loginctl lock-session
+				{ "Shutdown",     "gnome-session-quit --power-off", menubar_utils.lookup_icon("system-shutdown") },
+				{ "Reboot",       "gnome-session-quit --reboot",    menubar_utils.lookup_icon("system-reboot") },
+				{ "Suspend",      "systemctl suspend",              menubar_utils.lookup_icon("system-suspend") },
+				{ "Hibernate",    "systemctl hibernate",            menubar_utils.lookup_icon("system-hibernate") },
+				{ "Log out",      "gnome-session-quit --logout",    menubar_utils.lookup_icon("system-log-out") },
 			},
 		}
 
@@ -938,8 +1490,7 @@ local function category_launcher(args)
 			--awful.spawn.easy_async({ "whoami" }, function(stdout, stderr, reason, exit_code)
 			awful.spawn.easy_async_with_shell([[getent passwd "${USER:-$(whoami)}" | cut -d ':' -f 5 | cut -d ',' -f 1]], function(stdout, stderr, reason, exit_code)
 				local full_name = (stdout or "NAME NOT FOUND"):gsub("\n", "")
-				--child.text = full_name
-				child.text = "Simon B."
+				child.text = full_name
 			end)
 		end
 
@@ -992,11 +1543,18 @@ local function category_launcher(args)
 		end)
 
 		if args.auto_close then
-			rasti_menu_wibox:connect_signal("mouse::leave", function(self)
+			rasti_menu_wibox:connect_signal("mouse::leave", function()
 				rasti_menu_wibox:hide()
 			end)
 		end
 	end)
 end
 
-return category_launcher
+return setmetatable({
+	category_launcher = category_launcher,
+	flexi_launcher = flexi_launcher
+}, {
+	__call = function(self, ...)
+		return self.category_launcher(...)
+	end,
+})

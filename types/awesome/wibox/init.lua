@@ -1,4 +1,10 @@
+---@meta
+
+-- -@class wibox._args : table
+---@alias wibox._args table
+
 ---@class wibox
+---@operator call(wibox._args): wibox._instance
 ---@field border_width integer Border width.
 ---@field border_color string Border color.
 ---@field ontop boolean On top of other windows.
@@ -26,3 +32,6 @@
 ---@field container wibox.container
 ---@field layout wibox.layout
 local cls = {}
+
+-- -@class wibox._instance : table
+---@alias wibox._instance table
