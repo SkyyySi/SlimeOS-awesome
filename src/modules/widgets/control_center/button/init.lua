@@ -146,6 +146,13 @@ function mt:new(base)
 		end
 	}
 
+	if base.activity_signal then
+		awesome.connect_signal(base.activity_signal, function(is_active)
+			base.is_active = is_active
+			base:update_widgets()
+		end)
+	end
+
 	--widget_component.container:connect_signal("widget::redraw_needed", function()
 	--	notify("Current fg: "..tostring(current_property.fg))
 	--	base:update_widgets()

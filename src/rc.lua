@@ -68,72 +68,84 @@ ruled.notification.connect_signal("request::rules", function()
 	}
 end)
 
-naughty.connect_signal("request::display", function(n)
-	--local font = beautiful.font or ("Sans "..tostring(util.round(util.scale(12))))
-	n.bg = n.bg or beautiful.notification_bg or beautiful.bg_normal or "#202020"
-	if n.urgency == "critical" then
-		n.font = beautiful.monospace_font or ("monospace "..tostring(util.round(util.scale(12))))
-		n.timeout = 0
-		n.bg = beautiful.notification_bg_urgent or beautiful.bg_urgent or "#BB0000"
-	end
+do
+	local is_in_focus_mode = false
+	awesome.connect_signal("slimeos::focus_mode_toggled", function(is_active)
+		is_in_focus_mode = is_active
+	end)
 
-	local bg_lightness = util.color.get_lightness(n.bg)
-	n.fg = n.fg or beautiful.notification_fg or beautiful.fg_normal or "#D0D0D0"
-	if bg_lightness > 0.6 then
-		n.fg = beautiful.bg_normal or "#202020"
-	end
+	naughty.connect_signal("request::display", function(n)
+		--- Only show urgent notifications in focus mode
+		if is_in_focus_mode and n.urgency ~= "critical" then
+			return
+		end
 
-	--n.message = n.message.." ("..font..")"
-	local spacing_widget
-	if n.title and n.message and n.title ~= "" and n.message ~= "" then
-		spacing_widget = wibox.widget.separator
-	end
+		--local font = beautiful.font or ("Sans "..tostring(util.round(util.scale(12))))
+		n.bg = n.bg or beautiful.notification_bg or beautiful.bg_normal or "#202020"
+		if n.urgency == "critical" then
+			n.font = beautiful.monospace_font or ("monospace "..tostring(util.round(util.scale(12))))
+			n.timeout = 0
+			n.bg = beautiful.notification_bg_urgent or beautiful.bg_urgent or "#BB0000"
+		end
 
-	naughty.layout.box {
-		notification = n,
-		widget_template = {
-			{
+		local bg_lightness = util.color.get_lightness(n.bg)
+		n.fg = n.fg or beautiful.notification_fg or beautiful.fg_normal or "#D0D0D0"
+		if bg_lightness > 0.6 then
+			n.fg = beautiful.bg_normal or "#202020"
+		end
+
+		--n.message = n.message.." ("..font..")"
+		local spacing_widget
+		if n.title and n.message and n.title ~= "" and n.message ~= "" then
+			spacing_widget = wibox.widget.separator
+		end
+
+		naughty.layout.box {
+			notification = n,
+			widget_template = {
 				{
 					{
 						{
-							naughty.widget.icon,
 							{
-								naughty.widget.title,
-								naughty.widget.message,
-								spacing = util.scale(4),
-								spacing_widget = spacing_widget,
-								layout  = wibox.layout.fixed.vertical,
+								naughty.widget.icon,
+								{
+									naughty.widget.title,
+									naughty.widget.message,
+									spacing = util.scale(4),
+									spacing_widget = spacing_widget,
+									layout  = wibox.layout.fixed.vertical,
+								},
+								fill_space = true,
+								spacing    = util.scale(4),
+								layout     = wibox.layout.fixed.horizontal,
 							},
-							fill_space = true,
-							spacing    = util.scale(4),
-							layout     = wibox.layout.fixed.horizontal,
+							naughty.list.actions,
+							spacing = (beautiful.corner_radius or util.scale(20)) / 2,
+							layout  = wibox.layout.fixed.vertical,
 						},
-						naughty.list.actions,
-						spacing = (beautiful.corner_radius or util.scale(20)) / 2,
-						layout  = wibox.layout.fixed.vertical,
+						margins = beautiful.notification_margin or (beautiful.corner_radius or util.scale(20)) / 4,
+						widget  = wibox.container.margin,
 					},
-					margins = beautiful.notification_margin or (beautiful.corner_radius or util.scale(20)) / 4,
-					widget  = wibox.container.margin,
+					--id = "background_role",
+					--bg     = beautiful.notification_bg or beautiful.bg_normal or "#202020",
+					bg = n.bg or beautiful.notification_bg or beautiful.bg_normal or "#202020",
+					shape  = function(cr, w, h)
+						gears.shape.rounded_rect(cr, w, h, (beautiful.corner_radius or util.scale(20)) / 2)
+					end,
+					shape_border_width = util.scale(1),
+					widget = wibox.container.background,
 				},
-				--id = "background_role",
-				--bg     = beautiful.notification_bg or beautiful.bg_normal or "#202020",
-				bg = n.bg or beautiful.notification_bg or beautiful.bg_normal or "#202020",
-				shape  = function(cr, w, h)
-					gears.shape.rounded_rect(cr, w, h, (beautiful.corner_radius or util.scale(20)) / 2)
-				end,
-				shape_border_width = util.scale(1),
-				widget = wibox.container.background,
+				strategy = "max",
+				width    = beautiful.notification_max_width or util.scale(500),
+				widget   = wibox.container.constraint,
 			},
-			strategy = "max",
-			width    = beautiful.notification_max_width or util.scale(500),
-			widget   = wibox.container.constraint,
-		},
-		shape = function(cr, w, h)
-			gears.shape.rounded_rect(cr, w, h, (beautiful.corner_radius or util.scale(20)) / 2)
-		end,
-		bg = gears.color.transparent,
-	}
-end)
+			shape = function(cr, w, h)
+				gears.shape.rounded_rect(cr, w, h, (beautiful.corner_radius or util.scale(20)) / 2)
+			end,
+			bg = gears.color.transparent,
+		}
+	end)
+end
 
 --notify("This is a test notification", 0)
 
@@ -929,7 +941,7 @@ screen.connect_signal("request::desktop_decoration", function(s)
 			},
 		}),
 		margins = util.scale(2),
-		widget = wibox.container.margin,
+		widget  = wibox.container.margin,
 	}
 
 	-- Add widgets to the wibox
@@ -963,10 +975,17 @@ screen.connect_signal("request::desktop_decoration", function(s)
 	})
 
 	do
+		local forced_rect_shape = false
 		--- Make the bar rectangular / remove its shape only if there is
 		--- a maximized and visible client on one of the currently active tags.
 
 		function s:update_bar_shape()
+			if forced_rect_shape then
+				self.panels.primary.shape = gears.shape.rectangle
+				self.panels.primary.widget.shape = gears.shape.rectangle
+				return
+			end
+
 			for _, c in pairs(self.clients) do
 				local screen_tags, client_tags = self.selected_tags, c:tags()
 
@@ -981,8 +1000,8 @@ screen.connect_signal("request::desktop_decoration", function(s)
 				end
 			end
 
-			s.panels.primary.shape = panel_shape
-			s.panels.primary.widget.shape = panel_shape
+			self.panels.primary.shape = panel_shape
+			self.panels.primary.widget.shape = panel_shape
 		end
 
 		client.connect_signal("property::minimized", function(c) s:update_bar_shape() end)
@@ -990,9 +1009,13 @@ screen.connect_signal("request::desktop_decoration", function(s)
 		for _, t in pairs(s.tags) do
 			t:connect_signal("property::selected", function(c) s:update_bar_shape() end)
 		end
+		awesome.connect_signal("beautiful::gaps_status_changed", function()
+			forced_rect_shape = not beautiful.gaps_enabled
+			s:update_bar_shape()
+		end)
 	end
 
-	--[[ ] ]
+	--[[
 	s.panels.primary.widget = wibox.widget {
 		{
 			--{
@@ -1540,16 +1563,42 @@ end)
 -- 	--end
 -- end)
 
-local function update_shape_of(c) ---@param c client._instance
-	if c.maximized or c.fullscreen then
-		c.shape = gears.shape.rectangle
-		awful.spawn {"xprop", "-id", tostring(c.window), "-f", "_PICOM_SHADOW", "32c", "-set", "_PICOM_SHADOW", "0"}
-	elseif c.type == "normal" then
-		c.shape = beautiful.client_shape or function(cr, w, h)
-			gears.shape.rounded_rect(cr, w, h, beautiful.corner_radius or util.scale(20))
+local update_shape_of
+do
+	local forced_rect_shape = false
+	update_shape_of = function(c) ---@param c client._instance
+		if forced_rect_shape then
+			c._old_border_width = c._old_border_width or beautiful.border_width or util.scale(2)
+			c.border_width = util.scale(1)
+			c.shape = gears.shape.rectangle
+			awful.spawn {"xprop", "-id", tostring(c.window), "-f", "_PICOM_SHADOW", "32c", "-set", "_PICOM_SHADOW", "0"}
+			return
 		end
+
 		awful.spawn {"xprop", "-id", tostring(c.window), "-f", "_PICOM_SHADOW", "32c", "-set", "_PICOM_SHADOW", "1"}
+
+		if c.maximized or c.fullscreen then
+			c._old_border_width = c._old_border_width or beautiful.border_width or util.scale(2)
+			c.border_width = 0
+			c.shape = gears.shape.rectangle
+			awful.spawn {"xprop", "-id", tostring(c.window), "-f", "_PICOM_SHADOW", "32c", "-set", "_PICOM_SHADOW", "0"}
+		else
+			c.border_width = c._old_border_width or beautiful.border_width or util.scale(2)
+			if c.type == "normal" then
+				c.shape = beautiful.client_shape or function(cr, w, h)
+					gears.shape.rounded_rect(cr, w, h, beautiful.corner_radius or util.scale(20))
+				end
+				awful.spawn {"xprop", "-id", tostring(c.window), "-f", "_PICOM_SHADOW", "32c", "-set", "_PICOM_SHADOW", "1"}
+			end
+		end
 	end
+
+	awesome.connect_signal("beautiful::gaps_status_changed", function()
+		forced_rect_shape = not beautiful.gaps_enabled
+		for _, c in ipairs(client.get()) do
+			update_shape_of(c)
+		end
+	end)
 end
 
 _PLASMA_PANEL_OFFSET_X = -1920
@@ -1777,6 +1826,7 @@ end
 
 --awesome.emit_signal("desktop_grid::load_layout")
 
+--[===[
 do
 	--- A wrapper around `get_children_by_id()` to make it easier to use.
 	---@param widget wibox.widget._instance
@@ -1927,3 +1977,179 @@ do
 
 	desktop_test()
 end
+--]===]
+
+--[===[
+do
+	---@class shape_obj._instance
+
+	---@class shape_obj
+
+	---@class shape_obj
+	---@operator call({draw: fun(), sanitize: nil|fun(...): ...}): shape_obj._instance
+	---@field new fun(args: {draw: fun(), sanitize: nil|fun(...): ...}): shape_obj._instance
+	local shape_obj = {}
+	do
+		local unpack = (unpack or table.unpack)
+
+		shape_obj.__index = shape_obj
+
+		--- Called with all arguments beyond `cr`, `w` and `h`
+		function shape_obj:__call(...)
+			self.args = {...}
+			return self
+		end
+
+		function shape_obj:__add(other)
+			--assert(type(other) == "table")
+
+			local new_obj = shape_obj {
+				draw = function(...)
+					self.draw(...)
+					other.draw(...)
+				end,
+
+				sanitize = function(...)
+					--self.sanitize(...)
+					--other.sanitize(...)
+					return ...
+				end,
+			}
+
+			return new_obj
+		end
+
+		function shape_obj:assemble()
+			local function ret(cr, w, h)
+				self.draw(cr, self.sanitize(w, h, unpack(self.args)))
+
+				cr:close_path()
+			end
+
+			return ret
+		end
+
+		local mt = {}
+		mt.__index = mt
+		setmetatable(shape_obj, mt)
+
+		function mt:new(args)
+			args.draw = args.draw
+			args.sanitize = util.default(args.sanitize, function(...) return ... end) -- Takes all arguments except for `cr` (the first)
+			local obj = setmetatable({
+				draw = args.draw,
+				sanitize = args.sanitize,
+			}, self)
+			return obj
+		end
+
+		function mt:__call(...)
+			return self:new(...)
+		end
+	end
+
+	local shapes = {}
+	shapes.rounded_rect = shape_obj {
+		draw = function(cr, width, height, radius)
+			cr:move_to(0, radius)
+
+			cr:arc(radius,       radius,        radius,    math.pi,    3*(math.pi/2))
+			cr:arc(width-radius, radius,        radius, 3*(math.pi/2),    math.pi*2 )
+			cr:arc(width-radius, height-radius, radius,    math.pi*2 ,    math.pi/2 )
+			cr:arc(radius,       height-radius, radius,    math.pi/2 ,    math.pi   )
+		end,
+
+		sanitize = function(width, height, radius)
+			radius = radius or 10
+
+			if width / 2 < radius then
+				radius = width / 2
+			end
+
+			if height / 2 < radius then
+				radius = height / 2
+			end
+
+			return width, height, radius
+		end
+	}
+
+	shapes.partially_rounded_rect = shape_obj {
+		draw = function(cr, width, height, tl, tr, br, bl, rad)
+			-- In case there is already some other path on the cairo context:
+			-- Make sure the close_path() below goes to the right position.
+			cr:new_sub_path()
+
+			-- Top left
+			if tl then
+				cr:arc( rad, rad, rad, math.pi, 3*(math.pi/2))
+			else
+				cr:move_to(0,0)
+			end
+
+			-- Top right
+			if tr then
+				cr:arc( width-rad, rad, rad, 3*(math.pi/2), math.pi*2)
+			else
+				cr:line_to(width, 0)
+			end
+
+			-- Bottom right
+			if br then
+				cr:arc( width-rad, height-rad, rad, math.pi*2 , math.pi/2)
+			else
+				cr:line_to(width, height)
+			end
+
+			-- Bottom left
+			if bl then
+				cr:arc( rad, height-rad, rad, math.pi/2, math.pi)
+			else
+				cr:line_to(0, height)
+			end
+		end,
+
+		sanitize = function(width, height, tl, tr, br, bl, rad)
+			rad = rad or 10
+			if width / 2 < rad then
+				rad = width / 2
+			end
+
+			if height / 2 < rad then
+				rad = height / 2
+			end
+
+			return width, height, tl, tr, br, bl, rad
+		end
+	}
+
+	--local shape = shapes.rounded_rect(5):assemble()
+	local shape = shapes.partially_rounded_rect(true, true, false, false, 60) +
+		shapes.partially_rounded_rect(false, false, true, true, 20)
+		:assemble()
+	--shape = gears.shape.rounded_rect
+
+	local wb = wibox {
+		x = 0,
+		y = 0,
+		width  = util.scale(250),
+		height = util.scale(250),
+		visible = true,
+		ontop   = true,
+		bg = "#202020",
+		widget = {
+			{
+				bg     = "#D0D0D0",
+				--shape  = function(cr, w, h)
+				--	--notify(gears.shape.partially_rounded_rect(cr, w, h, true,  true,  false, false, util.scale(40)))
+				--	gears.shape.partially_rounded_rect(cr, w, h, false, false, true,  true,  util.scale(20))
+				--end,
+				shape = shape,
+				widget = wibox.container.background,
+			},
+			margins = util.scale(20),
+			widget  = wibox.container.margin,
+		}
+	}
+end
+--]===]

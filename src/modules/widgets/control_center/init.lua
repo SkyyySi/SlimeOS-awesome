@@ -831,20 +831,134 @@ local function main(args)
 	parts.buttongrid.container = wibox.widget {
 		homogeneous     = true,
 		expand          = true,
-		forced_num_cols = 3, -- y
-		forced_num_rows = 3, -- x
+		forced_num_cols = 3, -- x
+		forced_num_rows = 3, -- y
 		spacing = util.scale(10),
 		layout = wibox.layout.grid,
 	}
 
+	do
+		local function get_internet_status_async(callback)
+			awful.spawn.easy_async({ "nmcli", "networking", "connectivity" }, function(stdout, stderr, exit_code, reason)
+				local str = util.strip(stdout or "")
+				local is_on = not not str:match("full")
+				callback(is_on)
+			end)
+		end
+
+		parts.buttongrid.container:add(button {
+			is_active    = true,
+			activity_signal = "control_center::quick_settings::internet::activity_signal",
+			label_normal = "Internet",
+			label_active = "Internet",
+			icon_normal  = gears.color.recolor_image(util.get_script_path().."/icons/internet.svg", beautiful.fg_normal),
+			icon_active  = gears.color.recolor_image(util.get_script_path().."/icons/internet.svg", beautiful.bg_normal),
+			onclick      = function(self, b)
+				get_internet_status_async(function(is_on)
+					if is_on then
+						awful.spawn { "nmcli", "networking", "off" }
+					else
+						awful.spawn { "nmcli", "networking", "on" }
+					end
+				end)
+			end,
+		})
+
+		gears.timer {
+			timeout   = 2,
+			autostart = true,
+			callback  = function(self)
+				get_internet_status_async(function(is_on)
+					awesome.emit_signal("control_center::quick_settings::internet::activity_signal", is_on)
+				end)
+			end
+		}
+	end
+
+	do
+		local function get_bluetooth_status_async(callback)
+			awful.spawn.easy_async({ "rfkill", "list", "bluetooth" }, function(stdout, stderr, exit_code, reason)
+				local str = util.strip(stdout or "")
+				local is_on = (str:match("Soft blocked: yes") or str:match("Hard blocked: yes")) == nil
+				callback(is_on)
+			end)
+		end
+
+		parts.buttongrid.container:add(button {
+			is_active    = true,
+			activity_signal = "control_center::quick_settings::bluetooth::activity_signal",
+			label_normal = "Bluetooth",
+			label_active = "Bluetooth",
+			icon_normal  = gears.color.recolor_image(util.get_script_path().."/icons/bluetooth.svg", beautiful.fg_normal),
+			icon_active  = gears.color.recolor_image(util.get_script_path().."/icons/bluetooth.svg", beautiful.bg_normal),
+			onclick      = function(self, b)
+				get_bluetooth_status_async(function(is_on)
+					if is_on then
+						awful.spawn { "rfkill", "block", "bluetooth" }
+					else
+						awful.spawn { "rfkill", "unblock", "bluetooth" }
+					end
+				end)
+			end,
+		})
+
+		gears.timer {
+			timeout   = 2,
+			autostart = true,
+			callback  = function(self)
+				get_bluetooth_status_async(function(is_on)
+					awesome.emit_signal("control_center::quick_settings::bluetooth::activity_signal", is_on)
+				end)
+			end
+		}
+	end
+
 	parts.buttongrid.container:add(button {
 		is_active    = true,
-		label_normal = "Dark\nMode",
-		label_active = "Dark\nMode",
+		label_normal = "Light Mode",
+		label_active = "Dark Mode",
+		icon_normal  = gears.color.recolor_image(util.get_script_path().."/icons/light-mode.svg", beautiful.fg_normal),
+		icon_active  = gears.color.recolor_image(util.get_script_path().."/icons/dark-mode.svg",  beautiful.bg_normal),
 		onclick      = function(self, b)
-			--local retval = ("The button '%s' was clicked (with mouse button %s).\nIs active: %s"):format(self, b, self.is_active)
-			--notify(retval)
 			beautiful.color.switch_scheme()
+		end,
+	})
+
+	parts.buttongrid.container:add(button {
+		is_active    = false,
+		label_normal = "Focus mode",
+		label_active = "Focus mode",
+		icon_normal  = gears.color.recolor_image(util.get_script_path().."/icons/focus-mode.svg", beautiful.fg_normal),
+		icon_active  = gears.color.recolor_image(util.get_script_path().."/icons/focus-mode.svg", beautiful.bg_normal),
+		onclick      = function(self, b)
+			awesome.emit_signal("slimeos::focus_mode_toggled", self.is_active)
+		end,
+	})
+
+	parts.buttongrid.container:add(button {
+		is_active    = false,
+		label_normal = "Find text",
+		label_active = "Find text",
+		icon_normal  = gears.color.recolor_image(util.get_script_path().."/icons/find-text.svg", beautiful.fg_normal),
+		icon_active  = gears.color.recolor_image(util.get_script_path().."/icons/find-text.svg", beautiful.bg_normal),
+		onclick      = function(self, b)
+			self.is_active = false
+			self:update_widgets()
+			awful.spawn.easy_async({ "pkill", "-fU", os.getenv("USER"), "normcap" }, function()
+				awful.spawn({
+					"normcap",
+					"--language",
+					"eng+deu",
+					"--tray",
+					"False",
+					"--update",
+					"False",
+					"--color",
+					"#bd93f9"
+				}, {
+					ontop = true,
+				})
+			end)
 		end,
 	})
 

@@ -266,6 +266,7 @@ do
 		util.for_children(widget, "title_role", function(child)
 			child.text = base.client.name
 
+			--[==[
 			awesome.connect_signal("titlebars::update_title", function(c_sig)
 				if not c_is_valid(c_sig) then
 					return
@@ -275,11 +276,13 @@ do
 					child.text = c_sig._app_title
 				end
 			end)
+			--]==]
 		end)
 
 		util.for_children(widget, "icon_role", function(child)
 			child.image = base.client.icon
 
+			--[==[
 			awesome.connect_signal("titlebars::update_icon", function(c_sig)
 				if not c_is_valid(c_sig) then
 					return
@@ -289,6 +292,7 @@ do
 					child.icon = c_sig._app_icon
 				end
 			end)
+			--]==]
 		end)
 
 		util.for_children(widget, "close_button_icon_role", function(child)
@@ -328,6 +332,7 @@ do
 	end
 
 	local function gen_tab_group(base, on_change)
+		on_change = on_change or function(self) end
 		local tg, proxy, mt = {}, (base or {}), {}
 		setmetatable(tg, mt)
 
@@ -365,6 +370,10 @@ do
 			return proxy[1]
 		end
 
+		function mt:get_proxy()
+			return proxy
+		end
+
 		function mt:__index(k)
 			local v = proxy[k]
 			if v ~= nil then
@@ -381,7 +390,24 @@ do
 		return tg
 	end
 
+	local function new_instance(c)
+		if c._app_data and c._app_data.cmdline then
+			awful.spawn(c._app_data.cmdline)
+			return
+		end
+
+		awful.spawn.easy_async({ "readlink", "-f", "/proc/"..tostring(c.pid).."/exe" }, function(stdout, stderr, reason, exit_code)
+			if not stdout or stdout == "" or exit_code > 0 then
+				return
+			end
+
+			local cmd = util.strip(stdout)
+			awful.spawn(cmd)
+		end)
+	end
+
 	local tab_groups = {}
+	local tabs = {}
 
 	gen_tabbar = function(c, args)
 		if not c or not c.class then
@@ -399,7 +425,7 @@ do
 			tab_groups[client_class] = gen_tab_group({
 				{
 					client = c,
-					selected = false,
+					selected = true,
 				}
 			}, function(self)
 				--
@@ -427,68 +453,74 @@ do
 			--end
 		end)
 
-		local tabs = wibox.widget {
-			layout = wibox.layout.overflow.horizontal,
-		}
-		function tabs:clear()
-			self:remove_widgets(unpack(self.children))
-			clear(self.children)
-			self:emit_signal("widget::layout_changed")
-			self:emit_signal("widget::redraw_needed")
+		if not tabs[client_class] then
+			tabs[client_class] = wibox.widget {
+				layout = wibox.layout.overflow.horizontal,
+			}
+			tabs[client_class].clear = function(self)
+				self:remove_widgets(unpack(self.children))
+				clear(self.children)
+				self:emit_signal("widget::layout_changed")
+				self:emit_signal("widget::redraw_needed")
+			end
+			tabs[client_class].spawn_new_instance_of_selected = function(self)
+				for c_tab_group in tab_groups[client_class] do
+					if c_tab_group.selected then
+						new_instance(c_tab_group.client)
+						return
+					end
+				end
+			end
 		end
 
 		for c_tab_group in tab_groups[client_class] do
 			local w = gen_tab(c_tab_group)
 			if w then
-				tabs:add(w)
+				tabs[client_class]:add(w)
 			end
 		end
 
-		client.connect_signal("unmanage", function(c_sig)
-			--[==[
-			do
-				local is_alive = false
-				for c_alive in client.instances do
-					if c == c_alive then
-						is_alive = true
-						break
+		local spawn_new_instance_widget = wibox.widget {
+			{
+				{
+					{
+						{
+							bg     = "#FFFFFF",
+							shape  = function(cr, w, h) gears.shape.cross(cr, w, h, h/10) end,
+							widget = wibox.container.background,
+						},
+						forced_width  = util.scale(16),
+						forced_height = util.scale(16),
+						widget = wibox.container.constraint,
+					},
+					margins = util.scale(8),
+					widget  = wibox.container.margin,
+				},
+				id     = "background_role",
+				shape  = function(cr, w, h) gears.shape.rounded_rect(cr, w, h, util.scale(4)) end,
+				widget = wibox.container.background,
+			},
+			margins = util.scale(4),
+			widget  = wibox.container.margin,
+		}
+
+		util.for_children(spawn_new_instance_widget, "background_role", function(child)
+			buttonify {
+				widget = child,
+				button_callback_release = function(_, b)
+					if b == 1 then
+						tabs[client_class]:spawn_new_instance_of_selected()
 					end
-				end
-				if not is_alive then
-					return
-				end
-			end
-			--]==]
-
-			if c_sig.class ~= client_class or not tab_groups[client_class] then
-				return
-			end
-
-			tabs:clear()
-			tab_groups[client_class]:clear()
-
-			for _, cl in ipairs(client.get()) do
-				if cl.class == client_class then
-					tab_groups[client_class]:add {
-						client = cl,
-						selected = false,
-					}
-				end
-			end
-
-			--tab_groups[client_class]:clear()
-			for c_tab_group in tab_groups[client_class] do
-				if c_is_valid(c_tab_group.client) then
-					local w = gen_tab(c_tab_group)
-					if w then
-						tabs:add(w)
-					end
-				end
-			end
+				end,
+			}
 		end)
 
 		local widget = wibox.widget {
-			tabs,
+			{
+				tabs[client_class],
+				spawn_new_instance_widget,
+				layout = wibox.layout.align.horizontal,
+			},
 			{
 				buttons = args.buttons,
 				widget  = wibox.widget.base.make_widget,
@@ -498,6 +530,36 @@ do
 
 		return widget
 	end
+
+	local function redraw_tabs_for(c)
+		if not tab_groups[c.class] or not tabs[c.class] then
+			return
+		end
+
+		tabs[c.class]:clear()
+		tab_groups[c.class]:clear()
+
+		for _, cl in ipairs(client.get()) do
+			if cl.class == c.class then
+				tab_groups[c.class]:add {
+					client = cl,
+					selected = (cl == c),
+				}
+			end
+		end
+
+		for c_tab_group in tab_groups[c.class] do
+			if c_is_valid(c_tab_group.client) then
+				local w = gen_tab(c_tab_group)
+				if w then
+					tabs[c.class]:add(w)
+				end
+			end
+		end
+	end
+
+	client.connect_signal("manage",   redraw_tabs_for)
+	client.connect_signal("unmanage", redraw_tabs_for)
 end
 
 local function main(args)
@@ -659,8 +721,8 @@ local function main(args)
 					c._app_title = app.Name
 					c._app_icon  = app.icon_path
 					c._app_cmd   = app.cmdline
-					awesome.emit_signal("titlebars::update_title", c)
-					awesome.emit_signal("titlebars::update_icon", c)
+					c._app_data  = app
+					awesome.emit_signal("titlebars::update_app_data", c)
 				end
 			end
 		end)

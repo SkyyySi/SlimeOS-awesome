@@ -319,6 +319,27 @@ function t.color.make_dynamic(widget, fields, overrides)
 	return widget
 end
 
+do
+	t.gaps_enabled = true
+	local _gap_store
+	function t:toggle_gaps()
+		if self.gaps_enabled then
+			_gap_store = _gap_store or self.useless_gap
+			self.useless_gap = 0
+		else
+			self.useless_gap = _gap_store
+			_gap_store = nil
+		end
+		self.gaps_enabled = not self.gaps_enabled
+
+		awesome.emit_signal("beautiful::gaps_status_changed")
+	end
+
+	awesome.connect_signal("slimeos::focus_mode_toggled", function(is_active)
+		t:toggle_gaps()
+	end)
+end
+
 --- Desktop icons
 t.desktop_icon_font = "Source Sans Pro, Semibold "..t.font_size
 

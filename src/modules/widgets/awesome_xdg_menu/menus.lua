@@ -90,6 +90,7 @@ menu_parts["Internet"] = {
 menu_parts["Spiele"] = {
 	{"Minen", "gnome-mines"},
 	{"Prism Launcher", "prismlauncher"},
+	{"Quadrapassel", "quadrapassel"},
 	{"Steam (Native)", "/usr/bin/steam-native ", "/usr/share//icons/hicolor/16x16/apps/steam.png" },
 	{"Steam (Runtime)", "/usr/bin/env GDK_SCALE=2 /usr/bin/steam-runtime ", "/usr/share//icons/hicolor/16x16/apps/steam.png" },
 }
@@ -120,10 +121,15 @@ menu_parts["Systemwerkzeuge"] = {
 }
 
 menu_parts["Unterhaltungsmedien"] = {
+	{"Audacity", "env UBUNTU_MENUPROXY=0 audacity ", "/usr/share/pixmaps/audacity.xpm" },
 	{"Blanket", "blanket"},
 	{"Cheese", "cheese"},
+	{"EasyTAG", "easytag ", "/usr/share//icons/hicolor/16x16/apps/easytag.png" },
 	{"Jellyfin Media Player", "jellyfinmediaplayer"},
 	{"Musik", "gnome-music"},
+	{"OBS Studio", "obs", "/usr/share//icons/hicolor/128x128/apps/com.obsproject.Studio.png" },
+	{"OpenShot Video Editor", "openshot-qt ", "/usr/share//icons/hicolor/64x64/apps/openshot-qt.png" },
+	{"PulseAudio Equalizer", "pulseaudio-equalizer-gtk"},
 	{"PulseAudio System Tray", "pasystray", "/usr/share/pixmaps/pasystray.png" },
 	{"PulseAudio-Lautstärkeregler", "pavucontrol"},
 	{"Qt V4L2 test Utility", "qv4l2", "/usr/share//icons/hicolor/16x16/apps/qv4l2.png" },
@@ -159,6 +165,8 @@ menu_parts["Zubehör"] = {
 	{"MarkText", "/usr/lib/marktext/marktext ", "/usr/share//icons/hicolor/16x16/apps/marktext.png" },
 	{"Micro", "xterm -e micro "},
 	{"Nextcloud Desktop-Synchronisationsclient", "nextcloud ", "/usr/share//icons/hicolor/16x16/apps/Nextcloud.png" },
+	{"NormCap", "normcap "},
+	{"Nostalgia", "/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=nostalgia im.bernard.Nostalgia"},
 	{"Optimierungen", "gnome-tweaks"},
 	{"Schriften", "gnome-font-viewer "},
 	{"Spectacle", "/usr/bin/spectacle"},

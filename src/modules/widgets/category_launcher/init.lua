@@ -194,6 +194,7 @@ all_apps_mt.category_icon_map = setmetatable({
 	Favorites   = "applications-featured",
 	Recent      = "history",
 
+	Accessibility = "accessibility",
 	AudioVideo  = "applications-multimedia",
 	Development = "applications-development",
 	Education   = "applications-education",
@@ -215,6 +216,7 @@ all_apps_mt.category_id_map = setmetatable({
 	Favorites   = "applications-featured",
 	Recent      = "history",
 
+	Accessibility = "accessibility",
 	AudioVideo  = "applications-multimedia",
 	Development = "applications-development",
 	Education   = "applications-education",
@@ -234,6 +236,7 @@ all_apps_mt.category_name_map = setmetatable({
 	Favorites   = "Favorites",
 	Recent      = "Recent",
 
+	Accessibility = "Accessibility",
 	AudioVideo  = "Multimedia",
 	Development = "Development",
 	Education   = "Education",
@@ -333,7 +336,7 @@ local function flexi_launcher(args)
 	--- TODO: These two should be passed with the signal to show the widget,
 	--- which would mean that we'd only need to create one instance for multiple screens.
 	args.screen = util.default(args.screen, screen.primary)
-	args.placement_fn = util.default(args.placement_fn, function(w) awful.placement.centered(w, { honor_workarea = true }) end)
+	args.placement_fn = util.default(args.placement_fn, function(w) awful.placement.bottom_left(w, { honor_workarea = true, margins = util.scale(10) }) end)
 
 	--- IMPORTANT: Although this is returned, you should not rely on it being populated
 	--- immediatly. Instead, you should use a callback. This is, however, OK to use
@@ -349,6 +352,7 @@ local function flexi_launcher(args)
 	all_apps:run(function(apps) ---@param apps FreeDesktop.desktop_entry[]
 		---@type table<string, {apps: FreeDesktop.desktop_entry[], name: string, icon?: string}>
 		fl.category_names = {
+			"Accessibility",
 			"AudioVideo",
 			"Development",
 			"Education",
@@ -417,17 +421,24 @@ local function flexi_launcher(args)
 			fl.for_category_names(function(name)
 				submenus[name] = {}
 				for _, app in pairs(fl.categories[name].apps) do
-					table.insert(submenus[name], { app.Name, function() awful.spawn(app.cmdline) end, app.icon_path })
+					table.insert(submenus[name], { app.Name, function()
+						awful.spawn(app.cmdline)
+						fl.visible = false
+					end, app.icon_path })
 				end
 			end)
+
+			local default_apps = {}
+			default_apps.terminal = terminal or "xterm"
+			default_apps.editor   = editor or (terminal or "xterm").." -e "..(os.getenv("EDITOR") or os.getenv("VISUAL") or "nano")
 
 			fl.menu_items = {
 				{
 					"Awesome",
 					{
 						{ "Show hotkeys", function() awful.hotkeys_popup.show_help(nil, awful.screen.focused()) end, menubar_utils.lookup_icon("input-keyboard-symbolic") },
-						{ "Show manual", (terminal or "xterm") .. " -e man awesome",                                 menubar_utils.lookup_icon("help-info-symbolic") },
-						{ "Edit config", (editor or "xterm -e nano") .. " " .. globals.config_dir,                   menubar_utils.lookup_icon("edit-symbolic") },
+						{ "Show manual", default_apps.terminal .. " -e man awesome",                                 menubar_utils.lookup_icon("help-info-symbolic") },
+						{ "Edit config", default_apps.editor .. " " .. globals.config_dir,                   menubar_utils.lookup_icon("edit-symbolic") },
 						{ "Restart awesome", awesome.restart,                                                        menubar_utils.lookup_icon("system-restart-symbolic") },
 						{ "Quit awesome", function() awesome.quit() end,                                             menubar_utils.lookup_icon("application-exit-symbolic") },
 					},
@@ -445,19 +456,20 @@ local function flexi_launcher(args)
 					menubar_utils.lookup_icon("system-shutdown-symbolic"),
 				},
 				{ "-----------" },
-				{ fl.categories.AudioVideo.name,  submenus.AudioVideo,  fl.categories.AudioVideo.icon,  },
-				{ fl.categories.Development.name, submenus.Development, fl.categories.Development.icon, },
-				{ fl.categories.Education.name,   submenus.Education,   fl.categories.Education.icon,   },
-				{ fl.categories.Game.name,        submenus.Game,        fl.categories.Game.icon,        },
-				{ fl.categories.Graphics.name,    submenus.Graphics,    fl.categories.Graphics.icon,    },
-				{ fl.categories.Network.name,     submenus.Network,     fl.categories.Network.icon,     },
-				{ fl.categories.Office.name,      submenus.Office,      fl.categories.Office.icon,      },
-				{ fl.categories.Science.name,     submenus.Science,     fl.categories.Science.icon,     },
-				{ fl.categories.Settings.name,    submenus.Settings,    fl.categories.Settings.icon,    },
-				{ fl.categories.System.name,      submenus.System,      fl.categories.System.icon,      },
-				{ fl.categories.Utility.name,     submenus.Utility,     fl.categories.Utility.icon,     },
-				{ fl.categories.Wine.name,        submenus.Wine,        fl.categories.Wine.icon,        },
-				{ fl.categories.Other.name,       submenus.Other,       fl.categories.Other.icon,       },
+				{ fl.categories.Accessibility.name, submenus.Accessibility, fl.categories.Accessibility.icon, },
+				{ fl.categories.AudioVideo.name,    submenus.AudioVideo,    fl.categories.AudioVideo.icon,    },
+				{ fl.categories.Development.name,   submenus.Development,   fl.categories.Development.icon,   },
+				{ fl.categories.Education.name,     submenus.Education,     fl.categories.Education.icon,     },
+				{ fl.categories.Game.name,          submenus.Game,          fl.categories.Game.icon,          },
+				{ fl.categories.Graphics.name,      submenus.Graphics,      fl.categories.Graphics.icon,      },
+				{ fl.categories.Network.name,       submenus.Network,       fl.categories.Network.icon,       },
+				{ fl.categories.Office.name,        submenus.Office,        fl.categories.Office.icon,        },
+				{ fl.categories.Science.name,       submenus.Science,       fl.categories.Science.icon,       },
+				{ fl.categories.Settings.name,      submenus.Settings,      fl.categories.Settings.icon,      },
+				{ fl.categories.System.name,        submenus.System,        fl.categories.System.icon,        },
+				{ fl.categories.Utility.name,       submenus.Utility,       fl.categories.Utility.icon,       },
+				{ fl.categories.Wine.name,          submenus.Wine,          fl.categories.Wine.icon,          },
+				{ fl.categories.Other.name,         submenus.Other,         fl.categories.Other.icon,         },
 			}
 
 			fl.awful_menu = awful.menu { items = fl.menu_items }
@@ -491,7 +503,7 @@ local function flexi_launcher(args)
 							layout  = wibox.layout.fixed.vertical,
 						},
 						spacing       = util.scale(10),
-						forced_height = util.scale(35),
+						forced_height = util.scale(40),
 						layout        = wibox.layout.fixed.horizontal,
 					},
 					margins = util.scale(5),
@@ -562,11 +574,13 @@ local function flexi_launcher(args)
 							awesome.emit_signal("flexi_launcher::collapse_right_click_menus_except", right_click_menu)
 							right_click_menu:show()
 						elseif b == 4 or b == 5 then
-							for _, app_button in pairs(parent.children) do
-								for_children(app_button, "background-role", function(background_widget)
-									background_widget.bg = gears.color.transparent
-								end)
-							end
+							for_children(parent, "button-holder-role", function(app_button_list)
+								for _, app_button in pairs(app_button_list.children) do
+									for_children(app_button, "background-role", function(background_widget)
+										background_widget.bg = gears.color.transparent
+									end)
+								end
+							end)
 						end
 					end,
 				}
@@ -575,23 +589,78 @@ local function flexi_launcher(args)
 			return widget
 		end
 
-		local function gen_widget()
+		local function gen_app_list_widget()
+			local function shape(cr, w, h)
+				gears.shape.rounded_rect(cr, w, h, util.scale(15))
+			end
+
 			local widget = wibox.widget(util.default(args.widget_template, {
 				{
-					id            = "button-holder-role",
-					homogeneous   = true,
-					expand        = true,
-					orientation   = "vertical",
-					spacing       = util.scale(5),
-					min_cols_size = util.scale(160),
-					forced_width  = util.scale(160),
-					layout        = wibox.layout.grid,
-				}
+					{
+						{
+							{
+								id            = "button-holder-role",
+								homogeneous   = true,
+								expand        = true,
+								orientation   = "vertical",
+								spacing       = util.scale(10),
+								min_cols_size = util.scale(160),
+								forced_width  = util.scale(160),
+								layout        = wibox.layout.grid,
+							},
+							right  = util.scale(10),
+							widget = wibox.container.margin,
+						},
+						layout = wibox.layout.overflow.vertical,
+					},
+					margins = util.scale(10),
+					widget  = wibox.container.margin,
+				},
+				bg     = "#FFFFFF10",
+				shape  = shape,
+				widget = wibox.container.background,
 			}))
 
 			function widget:add_app(app)
 				for_children(widget, "button-holder-role", function(child)
-					child:app(app)
+					child:add(app)
+				end)
+			end
+
+			return widget
+		end
+
+		local function gen_category_switcher_widget()
+			local function shape(cr, w, h)
+				gears.shape.rounded_rect(cr, w, h, util.scale(15))
+			end
+
+			local widget = wibox.widget(util.default(args.widget_template, {
+				{
+					{
+						{
+							id            = "button-holder-role",
+							homogeneous   = true,
+							expand        = true,
+							orientation   = "vertical",
+							spacing       = util.scale(5),
+							min_cols_size = util.scale(160),
+							forced_width  = util.scale(160),
+							layout        = wibox.layout.grid,
+						},
+						margins = util.scale(5),
+						widget  = wibox.container.margin,
+					},
+					layout = wibox.layout.overflow.vertical,
+				},
+				bg     = "#FFFFFF10",
+				shape  = shape,
+				widget = wibox.container.background,
+			}))
+
+			function widget:add_app(app)
+				for_children(widget, "button-holder-role", function(child)
+					child:add(app)
 				end)
 			end
 
@@ -643,9 +712,12 @@ local function flexi_launcher(args)
 				gears.shape.rounded_rect(cr, w, h, util.scale(20))
 			end
 
+			local app_grid_widget = gen_app_list_widget()
+			for i = 1, #apps do
+				app_grid_widget:add_app(gen_app_button(apps[i], app_grid_widget))
+			end
+
 			fl.container = args.container(util.default(args.container_template, {
-				width   = util.scale(500),
-				height  = util.scale(700),
 				ontop   = true,
 				visible = false,
 				screen  = args.screen,
@@ -654,30 +726,45 @@ local function flexi_launcher(args)
 				widget  = {
 					{
 						{
-							text   = "PLACEHOLDER",
-							widget = wibox.widget.textbox,
+							app_grid_widget,
+							margins = util.scale(20),
+							widget  = wibox.container.margin,
 						},
-						margins = util.scale(20),
-						widget  = wibox.container.margin,
+						bg     = beautiful.bg_normal,
+						shape  = shape,
+						widget = wibox.container.background,
 					},
-					bg     = beautiful.bg_normal,
-					shape  = shape,
-					widget = wibox.container.background,
+					strategy = "exact",
+					width    = util.scale(600),
+					height   = util.scale(700),
+					widget   = wibox.container.constraint,
 				},
 			}))
 		end
 
 		function fl:show(placement_fn)
-			fl.awful_menu:show()
+			--fl.awful_menu:show()
 			self.visible = true
-			--self.container.visible = true
+			self.container.visible = true
 			(placement_fn or args.placement_fn)(self.container)
+
+			--- For some reason, the placement seems to not apply
+			--- the first time this function is executed. To force it to work,
+			--- we re-run the placement function after a short period of time.
+			gears.timer {
+				timeout   = 0.05,
+				autostart = true,
+				callback  = function(timer)
+					(placement_fn or args.placement_fn)(self.container)
+					timer:stop()
+				end,
+			}
 		end
 
 		function fl:hide()
-			fl.awful_menu:hide()
+			--fl.awful_menu:hide()
 			self.visible = false
-			--self.container.visible = false
+			self.container.visible = false
 		end
 
 		function fl:toggle()

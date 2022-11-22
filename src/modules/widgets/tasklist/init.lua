@@ -441,6 +441,28 @@ function tasklist:new(args)
 					buttonify {
 						widget = child,
 					}
+
+					if c.active then
+						-- focused
+						child.shape = function(cr, w, h)
+							gears.shape.circle(cr, w, h)
+						end
+					else
+						-- not focused
+						child.shape = gears.shape.rectangle
+					end
+				end
+
+				for _, child in ipairs(self:get_children_by_id("background_role")) do
+					if c.active then
+						-- focused
+						child.shape = function(cr, w, h)
+							gears.shape.circle(cr, w, h)
+						end
+					else
+						-- not focused
+						child.shape = gears.shape.rectangle
+					end
 				end
 
 				local function update_client_icon()
