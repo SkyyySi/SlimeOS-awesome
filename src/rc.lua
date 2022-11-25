@@ -203,7 +203,7 @@ local function spawn_once(cmd)
 	end)
 end
 
-spawn_once { "picom",--[[ "--experimental-backends",]] "--config", globals.config_dir.."/config/picom/picom.conf" }
+spawn_once { "picom", "--dbus", "--config", globals.config_dir.."/config/picom/picom.conf" }
 spawn_once { "pasystray" }
 spawn_once { "kdeconnect-indicator" }
 spawn_once { "flameshot" }
@@ -2153,3 +2153,73 @@ do
 	}
 end
 --]===]
+
+do
+	local picom = require("modules.lib.picom")
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+do
+	local wb = wibox {
+		type = "desktop",
+		x = 0,
+		y = 0,
+		width  = util.scale(250),
+		height = util.scale(250),
+		visible = false,
+		ontop   = true,
+		bg = gears.color.transparent,
+		widget = {
+			{
+				{
+					wibox.widget.textbox("start"),
+					bg     = gears.color {
+						type  = "linear",
+						from  = { 0, 0 },
+						to    = { 0, util.scale(30) },
+						stops = { { 0.1, "#80000000" }, { 1, "#80000040" } },
+					},
+					forced_heigth = util.scale(30),
+					widget = wibox.container.background,
+				},
+				{
+					wibox.widget.textbox("center"),
+					bg     = "#000000",--"#80000040",
+					fg     = gears.color {
+						type  = "linear",
+						from  = { 0, 0 },
+						to    = { util.scale(250), 0 },
+						stops = { { 0, "#FFFFFF" }, { 0.3, "#00000000" } },
+					},
+					forced_heigth = util.scale(190),
+					widget = wibox.container.background,
+				},
+				{
+					wibox.widget.textbox("end"),
+					bg     = gears.color {
+						type  = "linear",
+						from  = { 0, 0 },
+						to    = { 0, util.scale(30) },
+						stops = { { 0, "#80000040" }, { 0.9, "#80000000" } },
+					},
+					forced_heigth = util.scale(30),
+					widget = wibox.container.background,
+				},
+				layout = wibox.layout.align.vertical,
+			},
+			layout = wibox.layout.stack,
+		}
+	}
+end

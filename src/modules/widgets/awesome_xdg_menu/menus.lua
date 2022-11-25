@@ -174,6 +174,7 @@ menu_parts["Zubehör"] = {
 	{"Touché", "com.github.joseexposito.touche", "/usr/share//icons/hicolor/16x16/apps/com.github.joseexposito.touche.svg" },
 	{"Uhren", "gnome-clocks"},
 	{"VSCodium", "/opt/vscodium-bin/bin/codium --no-sandbox --unity-launch ", "/usr/share/pixmaps/vscodium.png" },
+	{"Warp", "/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=warp --file-forwarding app.drey.Warp @@u  @@"},
 	{"Wetter", "gapplication launch org.gnome.Weather"},
 	{"Zeichen", "/usr/bin/gnome-characters"},
 	{"gedit", "gedit "},

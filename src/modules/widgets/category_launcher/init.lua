@@ -428,19 +428,21 @@ local function flexi_launcher(args)
 				end
 			end)
 
-			local default_apps = {}
-			default_apps.terminal = terminal or "xterm"
-			default_apps.editor   = editor or (terminal or "xterm").." -e "..(os.getenv("EDITOR") or os.getenv("VISUAL") or "nano")
+			fl.default_apps = {}
+			fl.default_apps.terminal     = terminal or "xterm"
+			fl.default_apps.editor       = editor or fl.default_apps.terminal.." -e "..(os.getenv("EDITOR") or os.getenv("VISUAL") or "nano")
+			fl.default_apps.web_broser   = web_broser or "xdg-open http://"
+			fl.default_apps.file_manager = web_broser or "xdg-open ~"
 
 			fl.menu_items = {
 				{
 					"Awesome",
 					{
-						{ "Show hotkeys", function() awful.hotkeys_popup.show_help(nil, awful.screen.focused()) end, menubar_utils.lookup_icon("input-keyboard-symbolic") },
-						{ "Show manual", default_apps.terminal .. " -e man awesome",                                 menubar_utils.lookup_icon("help-info-symbolic") },
-						{ "Edit config", default_apps.editor .. " " .. globals.config_dir,                   menubar_utils.lookup_icon("edit-symbolic") },
-						{ "Restart awesome", awesome.restart,                                                        menubar_utils.lookup_icon("system-restart-symbolic") },
-						{ "Quit awesome", function() awesome.quit() end,                                             menubar_utils.lookup_icon("application-exit-symbolic") },
+						{ "Show hotkeys",    function() awful.hotkeys_popup.show_help(nil, awful.screen.focused()) end, menubar_utils.lookup_icon("input-keyboard-symbolic") },
+						{ "Show manual",     fl.default_apps.terminal .. " -e man awesome",                             menubar_utils.lookup_icon("help-info-symbolic") },
+						{ "Edit config",     fl.default_apps.editor .. " " .. globals.config_dir,                       menubar_utils.lookup_icon("edit-symbolic") },
+						{ "Restart awesome", awesome.restart,                                                           menubar_utils.lookup_icon("system-restart-symbolic") },
+						{ "Quit awesome",    function() awesome.quit() end,                                             menubar_utils.lookup_icon("application-exit-symbolic") },
 					},
 					beautiful.awesome_icon,
 				},
@@ -471,8 +473,6 @@ local function flexi_launcher(args)
 				{ fl.categories.Wine.name,          submenus.Wine,          fl.categories.Wine.icon,          },
 				{ fl.categories.Other.name,         submenus.Other,         fl.categories.Other.icon,         },
 			}
-
-			fl.awful_menu = awful.menu { items = fl.menu_items }
 		end
 
 		local function gen_app_button(app, parent)

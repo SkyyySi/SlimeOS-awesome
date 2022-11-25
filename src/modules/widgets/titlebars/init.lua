@@ -226,7 +226,7 @@ do
 									id     = "title_role",
 									widget = wibox.widget.textbox,
 								},
-								spacing = util.scale(4),
+								spacing = util.scale(8),
 								layout  = wibox.layout.fixed.horizontal,
 							},
 							{
@@ -236,7 +236,7 @@ do
 											id     = "close_button_icon_role",
 											widget = wibox.widget.imagebox,
 										},
-										margins = util.scale(2),
+										margins = util.scale(6),
 										widget  = wibox.container.margin,
 									},
 									id     = "close_button_background_role",
@@ -248,15 +248,18 @@ do
 							},
 							layout = wibox.layout.align.horizontal,
 						},
-						margins = util.scale(4),
+						margins = util.scale(8),
 						widget  = wibox.container.margin,
 					},
 					id     = "background_role",
-					shape  = function(cr, w, h) gears.shape.rounded_rect(cr, w, h, util.scale(4)) end,
+					shape  = function(cr, w, h) gears.shape.partially_rounded_rect(cr, w, h, true, true, false, false, util.scale(12)) end,
 					widget = wibox.container.background,
 				},
-				margins = util.scale(4),
-				widget  = wibox.container.margin,
+				top    = util.scale(4),
+				left   = util.scale(4),
+				right  = util.scale(4),
+				bottom = 0,
+				widget = wibox.container.margin,
 			},
 			strategy     = "exact",
 			forced_width = util.scale(200),
@@ -266,6 +269,9 @@ do
 		util.for_children(widget, "title_role", function(child)
 			child.text = base.client.name
 
+			base.client:connect_signal("property::name", function(c)
+				child.text = c.name
+			end)
 			--[==[
 			awesome.connect_signal("titlebars::update_title", function(c_sig)
 				if not c_is_valid(c_sig) then
@@ -282,7 +288,7 @@ do
 		util.for_children(widget, "icon_role", function(child)
 			child.image = base.client.icon
 
-			--[==[
+			--[= =[
 			awesome.connect_signal("titlebars::update_icon", function(c_sig)
 				if not c_is_valid(c_sig) then
 					return
@@ -296,7 +302,7 @@ do
 		end)
 
 		util.for_children(widget, "close_button_icon_role", function(child)
-			child.image = beautiful.titlebar_close_button_normal
+			child.image = gears.color.recolor_image(beautiful.titlebar_close_button_normal, beautiful.fg_normal)
 		end)
 
 		util.for_children(widget, "close_button_background_role", function(child)
@@ -313,7 +319,7 @@ do
 		do
 			local function update_bg(c, child)
 				if c.active then
-					child.bg = "#FFFFFF20"
+					child.bg = c._active_tab_bg or "#FFFFFF20"
 				else
 					child.bg = gears.color.transparent
 				end
@@ -324,6 +330,10 @@ do
 
 				base.client:connect_signal("property::active", function(c)
 					update_bg(c, child)
+				end)
+
+				child:connect_signal("button::release", function(_,_,_, b)
+					awesome.emit_signal("tabbar::client::switch", base.client)
 				end)
 			end)
 		end
@@ -441,16 +451,19 @@ do
 			--end
 		end
 
+		c._active_tab_bg = args.active_tab_bg
+
 		awesome.connect_signal("tabbar::client::kill", function(killed_client)
 			if not c_is_valid(killed_client) then return end
 			--if not tab_groups[client_class] then
-				killed_client:kill()
 			--	return
 			--end
 
-			--for k, v in ipairs(c.tab_group) do
-			--	--
+			--for k, v in ipairs(tab_groups[client_class]) do
+			--	notifyf("%s: %s", v, killed_client == v)
 			--end
+			killed_client:kill()
+			--awesome.emit_signal("tabbar::client::switch")
 		end)
 
 		if not tabs[client_class] then
@@ -493,7 +506,7 @@ do
 						forced_height = util.scale(16),
 						widget = wibox.container.constraint,
 					},
-					margins = util.scale(8),
+					margins = util.scale(16),
 					widget  = wibox.container.margin,
 				},
 				id     = "background_role",
@@ -517,21 +530,25 @@ do
 
 		local widget = wibox.widget {
 			{
-				tabs[client_class],
-				spawn_new_instance_widget,
+				{
+					tabs[client_class],
+					spawn_new_instance_widget,
+					layout = wibox.layout.align.horizontal,
+				},
+				{
+					buttons = args.buttons,
+					widget  = wibox.widget.base.make_widget,
+				},
 				layout = wibox.layout.align.horizontal,
 			},
-			{
-				buttons = args.buttons,
-				widget  = wibox.widget.base.make_widget,
-			},
-			layout = wibox.layout.align.horizontal,
+			top    = util.scale(8),
+			widget = wibox.container.margin,
 		}
 
 		return widget
 	end
 
-	local function redraw_tabs_for(c)
+	local function redraw_tabs_for(c, force_switch_client)
 		if not tab_groups[c.class] or not tabs[c.class] then
 			return
 		end
@@ -544,22 +561,46 @@ do
 				tab_groups[c.class]:add {
 					client = cl,
 					selected = (cl == c),
+					active_tab_bg = c._active_tab_bg
 				}
 			end
 		end
 
+		local force_switch_done = false
 		for c_tab_group in tab_groups[c.class] do
-			if c_is_valid(c_tab_group.client) then
+			local cl = c_tab_group.client
+			if c_is_valid(cl) then
 				local w = gen_tab(c_tab_group)
 				if w then
 					tabs[c.class]:add(w)
 				end
+				if not cl.minimized then
+					local geo = cl:geometry()
+					c.x = geo.x
+					c.y = geo.y
+					c.width = geo.width
+					c.height = geo.height
+					c.floating = cl.floating
+					c.maximized = cl.maximized
+				end
+				cl.minimized = not (((not force_switch_done) and force_switch_client) or (cl == c))
+
+				if not cl.minimized then
+					c:activate {
+						raise   = false,
+						context = "tab_switched",
+					}
+				end
 			end
+			force_switch_done = true
 		end
 	end
 
 	client.connect_signal("manage",   redraw_tabs_for)
-	client.connect_signal("unmanage", redraw_tabs_for)
+	client.connect_signal("unmanage", function(c)
+		redraw_tabs_for(c, true)
+	end)
+	awesome.connect_signal("tabbar::client::switch", redraw_tabs_for)
 end
 
 local function main(args)
@@ -622,7 +663,7 @@ local function main(args)
 		c.titlebars.top = awful.titlebar(c, {
 			position = "top",
 			font     = util.default(beautiful.titlebar_font, "Roboto, Semibold "..font_size),
-			size     = util.scale(40),
+			size     = util.scale(64),
 			bg       = gears.color.transparent,
 			shape = function(cr, w, h)
 				gears.shape.rounded_rect(cr, w, h, util.scale(20))
@@ -639,71 +680,41 @@ local function main(args)
 			{
 				{
 					{
-						{
-							--widget = absolute_center(
-								wibox.widget {
-									{
-										--awful.titlebar.widget.iconwidget(c),
-										--make_button(awful.titlebar.widget.floatingbutton(c)),
-										--make_button(awful.titlebar.widget.stickybutton(c)),
-										--make_button(awful.titlebar.widget.ontopbutton(c)),
-										awful.titlebar.widget.floatingbutton(c),
-										awful.titlebar.widget.stickybutton(c),
-										awful.titlebar.widget.ontopbutton(c),
-										volume_slider {
-											client = c,
-										},
-										spacing = util.scale(2),
-										layout  = wibox.layout.fixed.horizontal(),
-									},
-									margins = util.scale(6),
-									widget = wibox.container.margin,
-								},
-								gen_tabbar(c, {
-									buttons = buttons,
-								}),
-								--wibox.widget {
-								--	windows_title_widget,
-								--	buttons = buttons,
-								--	layout  = wibox.layout.flex.horizontal,
-								--},
-								wibox.widget {
-									{
-										--awful.titlebar.widget.minimizebutton(c),
-										--awful.titlebar.widget.maximizedbutton(c),
-										--awful.titlebar.widget.closebutton(c),
-										awful.titlebar.widget.minimizebutton(c),
-										awful.titlebar.widget.maximizedbutton(c),
-										awful.titlebar.widget.closebutton(c),
-										spacing = util.scale(2),
-										layout  = wibox.layout.fixed.horizontal(),
-									},
-									margins = util.scale(6),
-									widget  = wibox.container.margin,
-								},
-							--)
-							layout = wibox.layout.align.horizontal
+						awful.titlebar.widget.floatingbutton(c),
+						awful.titlebar.widget.stickybutton(c),
+						awful.titlebar.widget.ontopbutton(c),
+						volume_slider {
+							client = c,
 						},
-						bg = gears.color {
-							type  = "linear",
-							from  = { 0, 0 },
-							to    = { 0, util.default(c.titlebars.top.size, c.titlebars.top.height, util.scale(40)) },
-							stops = {
-								{ 0, "#FFFFFF06" },
-								{ 1, "#FFFFFF00" },
-							},
-						},
-						widget = wibox.container.background,
+						spacing = util.scale(2),
+						layout  = wibox.layout.fixed.horizontal(),
 					},
-					bg = bg,--util.default(beautiful.titlebar_bg_normal, beautiful.accent_bright, bg),
-					widget = wibox.container.background,
+					gen_tabbar(c, {
+						active_tab_bg = bg,
+						buttons = buttons,
+					}),
+					{
+						awful.titlebar.widget.minimizebutton(c),
+						awful.titlebar.widget.maximizedbutton(c),
+						awful.titlebar.widget.closebutton(c),
+						spacing = util.scale(2),
+						layout  = wibox.layout.fixed.horizontal(),
+					},
+					layout = wibox.layout.align.horizontal
 				},
-				top    = 1,
-				left   = 1,
-				right  = 1,
-				widget = wibox.container.margin,
+				bg = gears.color {
+					type  = "linear",
+					from  = { 0, 0 },
+					to    = { 0, util.default(c.titlebars.top.size, c.titlebars.top.height, util.scale(64)) },
+					stops = {
+						{ 0, "#FFFFFF08" },
+						{ 1, "#FFFFFF00" },
+					},
+				},
+				widget = wibox.container.background,
 			},
-			bg = bg,--util.default(beautiful.titlebar_bg, beautiful.accent_dark, "#DBE1EC"),
+			bg = beautiful.bg_normal,
+			--bg = bg,--util.default(beautiful.titlebar_bg_normal, beautiful.accent_bright, bg),
 			widget = wibox.container.background,
 		}
 

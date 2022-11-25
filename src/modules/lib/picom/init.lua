@@ -3,6 +3,10 @@ local awful   = require("awful")
 local wibox   = require("wibox")
 local ruled   = require("ruled")
 local naughty = require("naughty")
+local util    = require("modules.lib.util")
+
+local script_dir = util.get_script_path()
+local defualt_config_file_path = script_dir.."/picom.conf"
 
 local function main(args)
 	args = {
@@ -11,15 +15,17 @@ local function main(args)
 
 	local picom = {}
 
-	function picom.get_option(option, config_file, new_value)
+	function picom.get_option(option, new_value, config_file_path)
+		config_file_path = config_file_path or defualt_config_file_path
 		awful.spawn.with_shell(
-			[[grep -E ']]..option..[[(. *|)=(. *|).*(\;|)' ']]..config_file..[[' | sed -E 's/^]]..option..[[(. *|)=//g' | sed 's/;//g']]
+			[[grep -E ']]..option..[[(. *|)=(. *|).*(\;|)' ']]..config_file_path..[[' | sed -E 's/^]]..option..[[(. *|)=//g' | sed 's/;//g']]
 		)
 	end
 
-	function picom.set_option(option, new_value, config_file)
+	function picom.set_option(option, new_value, config_file_path)
+		config_file_path = config_file_path or defualt_config_file_path
 		awful.spawn.with_shell(
-			[[sed -E -i 's/]]..option..[[(. *|)=(. *)/]]..option.."="..new_value..[[;/' ]]..config_file
+			[[sed -E -i 's/]]..option..[[(. *|)=(. *)/]]..option.."="..new_value..[[;/' ]]..config_file_path
 		)
 	end
 
