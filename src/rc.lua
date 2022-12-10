@@ -907,13 +907,21 @@ screen.connect_signal("request::desktop_decoration", function(s)
 		layout = wibox.layout.fixed.horizontal,
 	}
 
-	util.for_children(s.panel_blocks.center, "separator_role", function(child)
-		awesome.connect_signal("active_client_count_changed", function(s_sig, count)
-			if s_sig ~= s then return end
-
-			child.visible = count > 0
+	function s:update_dock_tasklist_separator()
+		local show = #self.clients > 0
+		util.for_children(s.panel_blocks.center, "separator_role", function(child)
+			child.visible = show
+			child:emit_signal("widget::layout_changed")
+			child:emit_signal("widget::redraw_needed")
 		end)
-	end)
+	end
+
+	for _, t in pairs(s.tags) do
+		t:connect_signal("property::selected", function(c) s:update_dock_tasklist_separator() end)
+	end
+	s:connect_signal("property::clients", s.update_dock_tasklist_separator)
+	client.connect_signal("manage",   function(c) s:update_dock_tasklist_separator() end)
+	client.connect_signal("unmanage", function(c) s:update_dock_tasklist_separator() end)
 
 	--awesome.connect_signal("slimeos::dock::favorites_update", function(favorites)
 	--	s.panel_blocks.center:emit_signal("widget::redraw_needed")

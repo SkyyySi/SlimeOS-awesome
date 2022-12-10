@@ -268,6 +268,11 @@ function dock.gen_fav_widget(args, app)
 			end
 		end
 
+		table.insert(bound_menu_items, { "-----------" })
+		table.insert(bound_menu_items, { "Close menu", function()
+			bound_menu:hide()
+		end })
+
 		bound_menu = awful.menu {
 			items = bound_menu_items,
 		}

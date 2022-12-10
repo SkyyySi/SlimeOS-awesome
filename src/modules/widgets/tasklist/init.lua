@@ -10,9 +10,12 @@ local cairo = lgi.cairo
 
 local bling = require("modules.external.bling")
 
+local menubar_utils = require("modules.widgets.dock.menubar_utils")
+
 local app_title_map = {}
 local app_icon_map = {}
 local app_desktop_map = {}
+local app_data_map = {}
 local function update_app_maps(cb)
 	awesome.emit_signal("all_apps::get", function(all_apps)
 		if not all_apps then
@@ -23,6 +26,10 @@ local function update_app_maps(cb)
 			local desktop_file
 			if app.file then
 				desktop_file = app.file:gsub("^.*/", ""):match("(.*)%.desktop$")
+				app_title_map[desktop_file]   = app_title_map[desktop_file]   or app.Name      or "???"
+				app_icon_map[desktop_file]    = app_icon_map[desktop_file]    or app.icon_path or beautiful.awesome_icon
+				app_desktop_map[desktop_file] = app_desktop_map[desktop_file] or app.file
+				app_data_map[desktop_file]    = app_data_map[desktop_file]    or app
 			end
 
 			local class = app.StartupWMClass or desktop_file
@@ -31,8 +38,11 @@ local function update_app_maps(cb)
 				app_title_map[class]   = app_title_map[class]   or app.Name      or "???"
 				app_icon_map[class]    = app_icon_map[class]    or app.icon_path or beautiful.awesome_icon
 				app_desktop_map[class] = app_desktop_map[class] or app.file
+				app_data_map[class]    = app_data_map[class]    or app
 			end
 		end
+
+		awesome.emit_signal("tasklist::app_maps_updated", all_apps)
 
 		cb(all_apps)
 	end)
@@ -166,7 +176,7 @@ function tasklist:new(args)
 
 		local widget_bg = util.color.alter(beautiful.bg_normal, { a = 0.65 })
 
-		--[== =[
+		--[===[
 		local space = util.scale(10)
 		bling.widget.task_preview.enable {
 			width  = task_preview_geometry.width,
@@ -240,13 +250,21 @@ function tasklist:new(args)
 		--self:preview(c, args)
 	end
 
-	local right_click_menu = { {} }
-	right_click_menu[2] = awful.menu { items = right_click_menu[1] }
+	--local right_click_menu = { items = {} }
+	--right_click_menu.widget = awful.menu { items = right_click_menu.items }
 
-	awesome.connect_signal("slimeos::tasklist::close_all_right_click_menus", function()
-		right_click_menu[2]:hide()
-	end)
+	do
+		local function connect(c)
+			c._right_click_menu = c._right_click_menu or { items = {} }
+			c._right_click_menu.widget = awful.menu { items = c._right_click_menu.items }
+		end
+		for _, c in ipairs(client.get()) do
+			connect(c)
+		end
+		client.connect_signal("manage", connect)
+	end
 
+	local current_menu_client
 	local buttons = {
 		awful.button({}, 1, function(c) ---@param c client._instance
 			c:activate { context = "tasklist", action = "toggle_minimization" }
@@ -271,36 +289,75 @@ function tasklist:new(args)
 								--	notify(("%s -> %s"):format(app_exec, stdout_exec))
 								--end
 								if app_exec == stdout_exec then
-									notify(("%s -> %s"):format(app_exec, stdout_exec))
+									--notify(("%s -> %s"):format(app_exec, stdout_exec))
 									break
 								end
 							end
 						end)
 					end
 
+					for k, _ in ipairs(c._right_click_menu.items) do
+						c._right_click_menu.items[k] = nil
+					end
+
 					if favorites:has_favorite(desktop_file) then
-						right_click_menu[1][1] = {
+						c._right_click_menu.items[1] = {
 							"Remove from dock",
 							function()
+								current_menu_client = nil
 								awesome.emit_signal("slimeos::dock::favorites::remove", desktop_file)
 							end
 						}
 					else
-						right_click_menu[1][1] = {
+						c._right_click_menu.items[1] = {
 							"Pin to dock",
 							function()
+								current_menu_client = nil
 								awesome.emit_signal("slimeos::dock::favorites::add", desktop_file)
 							end
 						}
 					end
-					--notify(c.class)
-					--notify(app_desktop_map[c.class])
-					--notify(desktop_file)
-					--notify(right_click_menu[1][1][1] or "Unknown")
 
-					awesome.emit_signal("slimeos::tasklist::close_all_right_click_menus")
-					right_click_menu[2] = awful.menu { items = right_click_menu[1] }
-					right_click_menu[2]:show()
+					local app = app_data_map[c.class]
+					if app and next(app.actions_table) ~= nil then
+						table.insert(c._right_click_menu.items, { "-----------" })
+
+						for _, action in pairs(app.actions_table) do
+							local icon
+							if action.Icon then
+								icon = menubar_utils.lookup_icon(action.Icon)
+							end
+
+							table.insert(c._right_click_menu.items, { action.Name, function()
+								current_menu_client = nil
+								local cmd = action.cmdline or action.Exec:match("(.+)%s%%") or action.Exec
+								awful.spawn(cmd)
+							end, icon })
+						end
+					end
+
+					table.insert(c._right_click_menu.items, { "-----------" })
+					table.insert(c._right_click_menu.items, {
+						"Close menu",
+						function()
+							current_menu_client = nil
+							c._right_click_menu.widget:hide()
+						end,
+					})
+
+					for _, cl in ipairs(client.get()) do
+						if cl._right_click_menu and cl._right_click_menu.widget then
+							cl._right_click_menu.widget:hide()
+						end
+					end
+					--c._right_click_menu.widget:update()
+					c._right_click_menu.widget = awful.menu { items = c._right_click_menu.items }
+					if c == current_menu_client then
+						current_menu_client = nil
+					else
+						current_menu_client = c
+						c._right_click_menu.widget:show()
+					end
 				end)
 			end)
 			--awful.menu.client_list {
@@ -442,33 +499,25 @@ function tasklist:new(args)
 						widget = child,
 					}
 
-					if c.active then
-						-- focused
-						child.shape = function(cr, w, h)
-							gears.shape.circle(cr, w, h)
-						end
-					else
-						-- not focused
-						child.shape = gears.shape.rectangle
+					child.shape = function(cr, w, h)
+						gears.shape.circle(cr, w, h)
 					end
 				end
 
 				for _, child in ipairs(self:get_children_by_id("background_role")) do
-					if c.active then
-						-- focused
-						child.shape = function(cr, w, h)
-							gears.shape.circle(cr, w, h)
-						end
-					else
-						-- not focused
-						child.shape = gears.shape.rectangle
+					child.shape = function(cr, w, h)
+						gears.shape.circle(cr, w, h)
 					end
 				end
 
+				local proper_client_icon
 				local function update_client_icon()
+					proper_client_icon = beautiful.awesome_icon
+					if pcall(function() return c.valid end) and c.valid then
+						proper_client_icon = app_icon_map[c.class] or c.icon or beautiful.awesome_icon
+					end
 					for _, child in pairs(self:get_children_by_id("clienticon")) do
-						child.client = c
-						child.image = app_icon_map[c.class] or c.icon or beautiful.awesome_icon
+						child.image = proper_client_icon
 					end
 				end
 
@@ -501,6 +550,7 @@ function tasklist:new(args)
 				end)
 
 				update_app_maps(update_client_icon)
+				awesome.connect_signal("tasklist::app_maps_updated", update_client_icon)
 			end,
 			layout = wibox.layout.align.vertical,
 		},
