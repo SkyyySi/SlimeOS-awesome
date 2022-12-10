@@ -85,8 +85,9 @@ local capi = {
 	client = client
 }
 
-local util = require("modules.lib.util")
+local util      = require("modules.lib.util")
 local buttonify = require("modules.lib.buttonify")
+local dpi       = require("beautiful.xresources").apply_dpi
 
 local titlebar = {
 	widget = {},
@@ -1109,7 +1110,7 @@ function titlebar.widget.button(c, name, selector, action, args)
 			{
 				{
 					button_icon,
-					margins = util.scale(2),
+					margins = dpi(2),
 					widget  = wibox.container.margin,
 				},
 				id     = "background_role",
@@ -1119,10 +1120,10 @@ function titlebar.widget.button(c, name, selector, action, args)
 				shape_border_color = gcolor.transparent,
 				widget = wibox.container.background,
 			},
-			top     = util.scale(21),
-			bottom  = util.scale(21),
-			left    = util.scale(10.5),
-			right   = util.scale(10.5),
+			top     = dpi(15),
+			bottom  = dpi(15),
+			left    = dpi(7.5),
+			right   = dpi(7.5),
 			widget  = wibox.container.margin,
 		},
 		id     = "button_role",

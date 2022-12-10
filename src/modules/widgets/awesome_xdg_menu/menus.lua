@@ -76,6 +76,7 @@ menu_parts["Internet"] = {
 	{"Discord", "/usr/bin/discord", "/usr/share/pixmaps/discord.png" },
 	{"Ein verbundenes mit KDE Connect öffnen", "kdeconnect-handler --open "},
 	{"Firefox", "/usr/lib/firefox/firefox ", "/usr/share//icons/hicolor/16x16/apps/firefox.png" },
+	{"HakuNeko Desktop", "/usr/lib/hakuneko-desktop/hakuneko", "/usr/share//icons/hicolor/16x16/apps/hakuneko-desktop.png" },
 	{"IM-Kontakte", "ktp-contactlist ", "/usr/share//icons/hicolor/16x16/apps/telepathy-kde.png" },
 	{"Instant-Messenger-Protokollbetrachter", "ktp-log-viewer "},
 	{"KDE Connect", "kdeconnect-app"},

@@ -8,6 +8,7 @@ local setmetatable = setmetatable
 local getmetatable = getmetatable
 local next = next
 local os = os
+local unpack = unpack or table.unpack
 
 local awful     = require("awful")
 local gears     = require("gears")
@@ -78,6 +79,33 @@ function all_apps_mt:is_empty()
 	return next(self) == nil
 end
 
+local desktop_file_map = {}
+local function update_desktop_file_map(apps, app_dirs)
+	local app_dirs_enum = {}
+	for k, v in pairs(app_dirs) do app_dirs_enum[v] = k end
+	setmetatable(app_dirs_enum, {
+		__index = function(self, k)
+			return rawget(self, k) or 999999999
+		end
+	})
+
+	local I = 0
+	for _, app in pairs(apps) do
+		local app_path, app_file = app.file:match("(.*)/(.*)")
+
+		local old_app = desktop_file_map[app_file]
+		if old_app then
+			local old_app_path, old_app_file = old_app.file:match("(.*)/(.*)")
+			--- smaller means higher priority
+			if app_dirs_enum[app_file] < app_dirs_enum[old_app_file] then
+				desktop_file_map[app_file] = app
+			end
+		else
+			desktop_file_map[app_file] = app
+		end
+	end
+end
+
 function all_apps_mt:update(fn, do_not_regenerate)
 	if not self:is_empty() and do_not_regenerate then
 		fn(self)
@@ -138,10 +166,12 @@ function all_apps_mt:update(fn, do_not_regenerate)
 		end
 
 		table.sort(self, function(a, b)
-			return (a.Name or "") < (b.Name or "")
+			return (a.Name or ""):lower() < (b.Name or ""):lower()
 		end)
 
 		fn(self)
+
+		update_desktop_file_map(self, app_dirs)
 	end
 
 	do
@@ -211,6 +241,7 @@ all_apps_mt.category_icon_map = setmetatable({
 	Wine        = "wine",
 }, all_apps_mt._return_key_mt)
 
+--[[ I forgot what this was even intended to be used for
 all_apps_mt.category_id_map = setmetatable({
 	All         = "applications-all",
 	Favorites   = "applications-featured",
@@ -230,6 +261,7 @@ all_apps_mt.category_id_map = setmetatable({
 	Utility     = "applications-utilities",
 	Other       = "applications-other",
 }, all_apps_mt._return_key_mt)
+--]]
 
 all_apps_mt.category_name_map = setmetatable({
 	All         = "All",
@@ -371,14 +403,14 @@ local function flexi_launcher(args)
 		fl.all_apps = apps
 
 		---@param fn fun(name: string)
-		function fl.for_category_names(fn)
-			for _, name in ipairs(fl.category_names) do
+		function fl:for_category_names(fn)
+			for _, name in ipairs(self.category_names) do
 				fn(name)
 			end
 		end
 
 		fl.categories = {}
-		fl.for_category_names(function(cat)
+		fl:for_category_names(function(cat)
 			fl.categories[cat] = {}
 			fl.categories[cat].apps = {}
 			fl.categories[cat].name = all_apps.category_name_map[cat]
@@ -418,7 +450,7 @@ local function flexi_launcher(args)
 		--- ```
 		do
 			local submenus = {}
-			fl.for_category_names(function(name)
+			fl:for_category_names(function(name)
 				submenus[name] = {}
 				for _, app in pairs(fl.categories[name].apps) do
 					table.insert(submenus[name], { app.Name, function()
@@ -475,7 +507,8 @@ local function flexi_launcher(args)
 			}
 		end
 
-		local function gen_app_button(app, parent)
+		local function gen_app_button(app, parent, overides)
+			overides = overides or {}
 			local widget = wibox.widget(args.app_template or {
 				{
 					{
@@ -517,16 +550,16 @@ local function flexi_launcher(args)
 			})
 
 			for_children(widget, "app-icon-role", function(child)
-				child.image = app.icon_path
+				child.image = overides.icon or app.icon_path
 			end)
 
 			for_children(widget, "app-title-role", function(child)
-				child.markup = app.Name
+				child.markup = overides.name or app.Name
 			end)
 
 			for_children(widget, "app-description-role", function(child)
-				if app.Comment and app.Comment ~= "" then
-					child.markup = "<i>"..app.Comment.."</i>"
+				if overides.comment or (app.Comment and app.Comment ~= "") then
+					child.markup = "<i>"..(overides.comment or app.Comment).."</i>"
 				else
 					child.forced_heigth = 0
 				end
@@ -574,7 +607,7 @@ local function flexi_launcher(args)
 							awesome.emit_signal("flexi_launcher::collapse_right_click_menus_except", right_click_menu)
 							right_click_menu:show()
 						elseif b == 4 or b == 5 then
-							for_children(parent, "button-holder-role", function(app_button_list)
+							for_children(parent, "button_holder_role", function(app_button_list)
 								for _, app_button in pairs(app_button_list.children) do
 									for_children(app_button, "background-role", function(background_widget)
 										background_widget.bg = gears.color.transparent
@@ -589,7 +622,7 @@ local function flexi_launcher(args)
 			return widget
 		end
 
-		local function gen_app_list_widget()
+		function fl:gen_app_list_widget()
 			local function shape(cr, w, h)
 				gears.shape.rounded_rect(cr, w, h, util.scale(15))
 			end
@@ -599,7 +632,7 @@ local function flexi_launcher(args)
 					{
 						{
 							{
-								id            = "button-holder-role",
+								id            = "button_holder_role",
 								homogeneous   = true,
 								expand        = true,
 								orientation   = "vertical",
@@ -622,15 +655,26 @@ local function flexi_launcher(args)
 			}))
 
 			function widget:add_app(app)
-				for_children(widget, "button-holder-role", function(child)
+				for_children(widget, "button_holder_role", function(child)
 					child:add(app)
+				end)
+			end
+
+			function widget:clear(app)
+				for_children(widget, "button_holder_role", function(child)
+					for k, _ in pairs(child.children) do
+						child.children[k] = nil
+					end
+					pcall(function() child:remove(unpack(child.children)) end)
+					child:emit_signal("widget::layout_changed")
+					child:emit_signal("widget::redraw_needed")
 				end)
 			end
 
 			return widget
 		end
 
-		local function gen_category_switcher_widget()
+		function fl:gen_category_switcher_widget()
 			local function shape(cr, w, h)
 				gears.shape.rounded_rect(cr, w, h, util.scale(15))
 			end
@@ -639,7 +683,7 @@ local function flexi_launcher(args)
 				{
 					{
 						{
-							id            = "button-holder-role",
+							id            = "button_holder_role",
 							homogeneous   = true,
 							expand        = true,
 							orientation   = "vertical",
@@ -659,7 +703,7 @@ local function flexi_launcher(args)
 			}))
 
 			function widget:add_app(app)
-				for_children(widget, "button-holder-role", function(child)
+				for_children(widget, "button_holder_role", function(child)
 					child:add(app)
 				end)
 			end
@@ -707,14 +751,43 @@ local function flexi_launcher(args)
 		end
 		--]]
 
+		fl.app_pages = {}
+		fl:for_category_names(function(name)
+			local list = fl:gen_app_list_widget()
+			table.insert(fl.app_pages, list)
+
+			for _, app in pairs(fl.categories[name].apps) do
+				list:add_app(gen_app_button(app, list))
+			end
+		end)
+		-- Special categories
+		fl.app_pages._all_apps = fl:gen_app_list_widget()
+		for i = 1, #apps do
+			fl.app_pages._all_apps:add_app(gen_app_button(apps[i], fl.app_pages._all_apps))
+		end
+		fl.app_pages._search_results = fl:gen_app_list_widget()
+		fl.app_pages._favorites = fl:gen_app_list_widget()
+
+		function fl.app_pages._favorites:refresh()
+			awesome.emit_signal("slimeos::dock::favorites::get", function(favorites)
+				self:clear()
+				for _, fav in pairs(favorites) do
+					app = desktop_file_map[fav]
+					self:add_app(gen_app_button(app, self))
+				end
+			end)
+		end
+
+		fl.search_prompt_is_running = false
+		fl._current_page = fl.app_pages._all_apps
+
+		function fl:get_current_page()
+			return self._current_page
+		end
+
 		do
 			local function shape(cr, w, h)
 				gears.shape.rounded_rect(cr, w, h, util.scale(20))
-			end
-
-			local app_grid_widget = gen_app_list_widget()
-			for i = 1, #apps do
-				app_grid_widget:add_app(gen_app_button(apps[i], app_grid_widget))
 			end
 
 			fl.container = args.container(util.default(args.container_template, {
@@ -726,7 +799,20 @@ local function flexi_launcher(args)
 				widget  = {
 					{
 						{
-							app_grid_widget,
+							{
+								nil,
+								{
+									id     = "app_grid_role",
+									layout = wibox.layout.flex.horizontal,
+								},
+								{
+									id     = "search_prompt_role",
+									forced_height = util.scale(50),
+									widget = wibox.widget.textbox,
+								},
+								spacing = util.scale(20),
+								layout  = wibox.layout.align.vertical,
+							},
 							margins = util.scale(20),
 							widget  = wibox.container.margin,
 						},
@@ -740,10 +826,99 @@ local function flexi_launcher(args)
 					widget   = wibox.container.constraint,
 				},
 			}))
+
+			for_children(fl.container.widget, "app_grid_role", function(child)
+				child:add(fl:get_current_page())
+			end)
+		end
+
+		function fl:set_current_page(page)
+			self._current_page = page
+			for_children(self.container.widget, "app_grid_role", function(child)
+				child:remove(1)
+				child:add(page)
+				child:emit_signal("widget::layout_changed")
+				child:emit_signal("widget::redraw_needed")
+			end)
+		end
+
+		do
+			local prev_page, search_result
+
+			function fl:show_search_prompt()
+				self.search_prompt_is_running = true
+
+				for_children(self.container.widget, "search_prompt_role", function(child)
+					awful.prompt.run {
+						prompt  = "<b>Search: </b>",
+						textbox = child,
+						done_callback = function()
+							if prev_page then self:set_current_page(prev_page) end
+							search_result = nil
+							self:hide()
+						end,
+						exe_callback = function(input)
+							if not input or #input == 0 then return end
+
+							if search_result then
+								awful.spawn(search_result.cmdline)
+							end
+						end,
+						keypressed_callback = function(mod, key, input)
+							prev_page = prev_page or self:get_current_page()
+
+							if key == "Escape" then
+								if prev_page then self:set_current_page(prev_page) end
+								prev_page = nil
+								return
+							end
+
+							local query = input..key
+
+							--- This is incorrect. However, since we don't know the cursor position,
+							--- we have no choice but to just assume that the user doesn't move the cursor.
+							if key == "BackSpace" then
+								local len = #input
+								query = input:sub(1, len - 1)
+							elseif key == "Delete" then
+								query = input
+							elseif #key > 1 then
+								-- key is not a letter - don't add it to the search string
+								return
+							end
+
+							if #query < 1 then
+								if prev_page then self:set_current_page(prev_page) end
+								prev_page = nil
+								return
+							end
+
+							self:set_current_page(self.app_pages._search_results)
+
+							local found_apps = apps:fuzzy_find_app(query)
+							self.app_pages._search_results:clear()
+							if next(found_apps) == nil then
+								return
+							end
+							search_result = found_apps[1][2]
+
+							self.app_pages._search_results:clear()
+							for _, app_pair in pairs(found_apps) do
+								local app = app_pair[2]
+								self.app_pages._search_results:add_app(gen_app_button(app, self.app_pages._search_results, {
+									name = search_highlight(query, app.Name),
+								}))
+							end
+						end,
+					}
+				end)
+			end
 		end
 
 		function fl:show(placement_fn)
-			--fl.awful_menu:show()
+			--self.awful_menu:show()
+			--self.app_pages._favorites:refresh()
+			--self:set_current_page(fl.app_grids._favorites)
 			self.visible = true
 			self.container.visible = true
 			(placement_fn or args.placement_fn)(self.container)
@@ -759,12 +934,21 @@ local function flexi_launcher(args)
 					timer:stop()
 				end,
 			}
+
+			self:show_search_prompt()
 		end
 
 		function fl:hide()
 			--fl.awful_menu:hide()
 			self.visible = false
 			self.container.visible = false
+
+			if self.search_prompt_is_running then
+				local char = "Escape"
+				root.fake_input("key_press",   char)
+				root.fake_input("key_release", char)
+				self.search_prompt_is_running = false
+			end
 		end
 
 		function fl:toggle()

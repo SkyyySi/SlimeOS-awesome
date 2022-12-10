@@ -106,6 +106,7 @@ local favs_mt = {
 
 	__call = function(self)
 		local mt = getmetatable(self)
+		mt._iterator = mt._iterator or 0
 
 		if mt._iterator < #self then
 			iterator = mt._iterator + 1

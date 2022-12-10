@@ -5,8 +5,9 @@ local util  = require("modules.lib.util")
 ---@param center wibox.widget
 ---@param right wibox.widget
 ---@param buttons? awful.button
+---@param callback? fun(self: wibox.widget)
 ---@return wibox.widget widget
-local function absolute_center(left, center, right, buttons)
+local function absolute_center(left, center, right, buttons, callback)
 	--- `absolute_center {...}` overrides the click surface; this widget
 	--- counteracts this.
 	---@type wibox.widget
@@ -14,7 +15,7 @@ local function absolute_center(left, center, right, buttons)
 		buttons = util.default(buttons, {}),
 	}
 
-	return wibox.widget {
+	local ret = wibox.widget {
 		{ -- Left widget
 			{
 				left,
@@ -52,6 +53,12 @@ local function absolute_center(left, center, right, buttons)
 		expand = "outside",
 		layout = wibox.layout.align.horizontal,
 	}
+
+	if callback then
+		callback(ret)
+	end
+
+	return ret
 end
 
 return absolute_center

@@ -6,57 +6,50 @@ local buttonify       = require("modules.lib.buttonify")
 local util            = require("modules.lib.util")
 local absolute_center = require("modules.lib.absolute_center")
 local bling           = require("modules.external.bling")
+local dpi             = require("beautiful.xresources").apply_dpi
 
 awful.titlebar = require(... ..".awful_titlebar_patched")
 
 wibox.layout.overflow = require("wibox_layout_overflow")
 
+local lgi = require("lgi")
+local gdk = lgi.require("Gdk", "3.0")
+
 local font_size = beautiful.font_size or "12"
 
-local function make_button(widget, args)
-	args.normal   = args.normal   or "#FF000060"
-	args.hover    = args.hover    or "#FF0000B0"
-	args.press    = args.press    or "#FF0000FF"
-	args.release  = args.release  or args.hover or"#FF0000B0"
-	args.callback = args.callback or function() end
-	args.shape    = args.shape    or function(cr, w, h) gears.shape.circle(cr, w, h) end
-
-	---@type "minimize"|"maximize"|"close"|"floating"|"sticky"|"ontop"|"below" "below"=TBA
-	args.action = args.action
-
-	do return widget end
-
-	local new_widget = wibox.widget {
-		{
-			{
-				widget,
-				margins = util.scale(2),
-				widget  = wibox.container.margin,
-			},
-			id     = "background_role",
-			bg     = args.normal or "#FF0000B0",
-			shape  = args.shape,
-			shape_border_width = 1,
-			shape_border_color = gears.color.transparent,
-			widget = wibox.container.background,
-		},
-		margins = util.scale(3),
-		widget  = wibox.container.margin,
-	}
-
-	util.for_children(new_widget, "background_role", function(child)
-		buttonify {
-			widget                  = child,
-			mouse_effects           = true,
-			button_color_normal     = args.normal,
-			button_color_hover      = args.hover,
-			button_color_press      = args.press,
-			button_color_release    = args.release,
-			button_callback_release = args.callback,
-		}
-	end)
-
-	return new_widget
+local function get_dominant_color(c)
+    local color, pb, bytes
+    local tally = {}
+    local content = gears.surface(c.content)
+    local cgeo = c:geometry()
+    local x_offset = 2
+    local y_offset = 2
+    local x_lim = math.floor(cgeo.width / 2)
+    for x_pos = 0, x_lim, 2 do
+        for y_pos = 0, 8, 1 do
+            pb = gdk.pixbuf_get_from_surface(content, x_offset + x_pos, y_offset + y_pos, 1, 1)
+            bytes = pb:get_pixels()
+            color = "#" .. bytes:gsub(".", function(col)
+                return ("%02x"):format(col:byte())
+            end)
+            if not tally[color] then
+                tally[color] = 1
+            else
+                tally[color] = tally[color] + 1
+            end
+        end
+    end
+    local mode
+    local mode_c = 0
+    for kolor, kount in pairs(tally) do
+        if kount > mode_c then
+            mode_c = kount
+            mode = kolor
+        end
+    end
+    color = mode
+    --set_color_rule(c, color)
+    return color
 end
 
 local client_volumes = {} ---@type table<integer, integer>
@@ -155,7 +148,7 @@ local function volume_slider(args)
 		maximum             = 100,
 		value               = 50,
 		visible             = false,
-		forced_width        = util.scale(200),
+		forced_width        = dpi(200),
 		widget              = wibox.widget.slider,
 	}
 
@@ -194,6 +187,14 @@ local function volume_slider(args)
 	return widget
 end
 
+--- Set an X property on a client window
+---@param window_id str Typically `c.window`
+---@param prop_name str
+---@param prop_value str
+local function set_xprop(window_id, prop_name, prop_value)
+	awful.spawn {"xprop", "-id", tostring(window_id), "-f", tostring(prop_name), "32c", "-set", "_PICOM_SHADOW", tostring(prop_value)}
+end
+
 local gen_tabbar
 do
 	local function clear(tb)
@@ -206,63 +207,73 @@ do
 		return pcall(function() return c.valid end) and c.valid
 	end
 
+	local mouse_over_tab_close_button = false
+
+	local client_top_bg_cache = {}
+
 	local function gen_tab(base)
-		if not c_is_valid(base.client) then
-			return
-		end
+		if not c_is_valid(base.client) then return end
 
 		local widget = wibox.widget {
 			{
 				{
 					{
 						{
-							nil,
 							{
 								{
 									id     = "icon_role",
 									widget = wibox.widget.imagebox,
 								},
 								{
-									id     = "title_role",
-									widget = wibox.widget.textbox,
+									{
+										id     = "title_role",
+										widget = wibox.widget.textbox,
+									},
+									fg = gears.color {
+										type  = "linear",
+										from  = { 0, 0 },
+										to    = { dpi(150), 0 },
+										stops = {
+											{ 0,    "#FFFFFFFF" },
+											{ 0.75, "#FFFFFFFF" },
+											{ 1,    "#FFFFFF00" },
+										},
+									},
+									widget = wibox.container.background,
 								},
-								spacing = util.scale(8),
+								spacing = dpi(4),
 								layout  = wibox.layout.fixed.horizontal,
 							},
 							{
 								{
 									{
-										{
-											id     = "close_button_icon_role",
-											widget = wibox.widget.imagebox,
-										},
-										margins = util.scale(6),
-										widget  = wibox.container.margin,
+										id     = "close_button_icon_role",
+										widget = wibox.widget.imagebox,
 									},
-									id     = "close_button_background_role",
-									shape  = gears.shape.circle,
-									widget = wibox.container.background,
+									margins = dpi(4),
+									widget  = wibox.container.margin,
 								},
-								margins = util.scale(2),
-								widget  = wibox.container.margin,
+								id     = "close_button_background_role",
+								shape  = gears.shape.circle,
+								widget = wibox.container.background,
 							},
 							layout = wibox.layout.align.horizontal,
 						},
-						margins = util.scale(8),
+						margins = dpi(6),
 						widget  = wibox.container.margin,
 					},
 					id     = "background_role",
-					shape  = function(cr, w, h) gears.shape.partially_rounded_rect(cr, w, h, true, true, false, false, util.scale(12)) end,
+					shape  = function(cr, w, h) gears.shape.partially_rounded_rect(cr, w, h, true, true, false, false, dpi(10)) end,
 					widget = wibox.container.background,
 				},
-				top    = util.scale(4),
-				left   = util.scale(4),
-				right  = util.scale(4),
+				top    = dpi(2),
+				left   = dpi(2),
+				right  = dpi(2),
 				bottom = 0,
 				widget = wibox.container.margin,
 			},
 			strategy     = "exact",
-			forced_width = util.scale(200),
+			forced_width = dpi(180),
 			widget       = wibox.container.constraint,
 		}
 
@@ -289,10 +300,8 @@ do
 			child.image = base.client.icon
 
 			--[= =[
-			awesome.connect_signal("titlebars::update_icon", function(c_sig)
-				if not c_is_valid(c_sig) then
-					return
-				end
+			awesome.connect_signal("titlebars::update_app_data", function(c_sig)
+				if not c_is_valid(c_sig) then return end
 
 				if c_sig == base.client and c_sig._app_icon and c_sig._app_icon ~= "" then
 					child.icon = c_sig._app_icon
@@ -308,8 +317,14 @@ do
 		util.for_children(widget, "close_button_background_role", function(child)
 			buttonify {
 				widget = child,
-				button_callback_release = function(_, button)
-					if button == 1 then
+				button_callback_hover = function()
+					mouse_over_tab_close_button = true
+				end,
+				button_callback_normal = function()
+					mouse_over_tab_close_button = false
+				end,
+				button_callback_release = function(_, b)
+					if b == 1 then
 						awesome.emit_signal("tabbar::client::kill", base.client)
 					end
 				end
@@ -318,14 +333,31 @@ do
 
 		do
 			local function update_bg(c, child)
+				if not c_is_valid(c) then return end
 				if c.active then
-					child.bg = c._active_tab_bg or "#FFFFFF20"
+					child.bg = client_top_bg_cache[c] or c._active_tab_bg or "#FFFFFF20"
+					gears.timer.start_new(0.05, function()
+						local app_top_color
+						pcall(function()
+							local color = get_dominant_color(c)
+							assert(type(color) == "string", "Expected to get a color string")
+							child.bg = color
+							--color = get_dominant_color(c)
+							--assert(type(color) == "string", "Expected to get a color string")
+							client_top_bg_cache[c] = color
+							app_top_color = color
+						end)
+
+						child.bg = app_top_color or c._active_tab_bg or "#FFFFFF20"
+						return false
+					end)
 				else
 					child.bg = gears.color.transparent
 				end
 			end
 
 			util.for_children(widget, "background_role", function(child)
+				if not c_is_valid(base.client) then return end
 				update_bg(base.client, child)
 
 				base.client:connect_signal("property::active", function(c)
@@ -420,10 +452,6 @@ do
 	local tabs = {}
 
 	gen_tabbar = function(c, args)
-		if not c or not c.class then
-			error("Error in titlebars/init.lua: Could not generate tab bar")
-		end
-
 		local client_class = c.class
 
 		if tab_groups[client_class] then
@@ -499,21 +527,21 @@ do
 					{
 						{
 							bg     = "#FFFFFF",
-							shape  = function(cr, w, h) gears.shape.cross(cr, w, h, h/10) end,
+							shape  = function(cr, w, h) gears.shape.cross(cr, w, h, dpi(1)) end,
 							widget = wibox.container.background,
 						},
-						forced_width  = util.scale(16),
-						forced_height = util.scale(16),
+						forced_width  = dpi(15),
+						forced_height = dpi(15),
 						widget = wibox.container.constraint,
 					},
-					margins = util.scale(16),
+					margins = dpi(6),
 					widget  = wibox.container.margin,
 				},
 				id     = "background_role",
-				shape  = function(cr, w, h) gears.shape.rounded_rect(cr, w, h, util.scale(4)) end,
+				shape  = function(cr, w, h) gears.shape.rounded_rect(cr, w, h, dpi(4)) end,
 				widget = wibox.container.background,
 			},
-			margins = util.scale(4),
+			margins = dpi(6),
 			widget  = wibox.container.margin,
 		}
 
@@ -541,7 +569,7 @@ do
 				},
 				layout = wibox.layout.align.horizontal,
 			},
-			top    = util.scale(8),
+			top    = dpi(6),
 			widget = wibox.container.margin,
 		}
 
@@ -552,6 +580,8 @@ do
 		if not tab_groups[c.class] or not tabs[c.class] then
 			return
 		end
+
+		if not c_is_valid(c) then return end
 
 		tabs[c.class]:clear()
 		tab_groups[c.class]:clear()
@@ -596,10 +626,9 @@ do
 		end
 	end
 
-	client.connect_signal("manage",   redraw_tabs_for)
-	client.connect_signal("unmanage", function(c)
-		redraw_tabs_for(c, true)
-	end)
+	client.connect_signal("manage", redraw_tabs_for)
+	client.connect_signal("unmanage", function(c) redraw_tabs_for(c, true) end)
+	client.connect_signal("property::active", redraw_tabs_for)
 	awesome.connect_signal("tabbar::client::switch", redraw_tabs_for)
 end
 
@@ -613,7 +642,7 @@ local function main(args)
 		if c.requests_no_titlebar then return end
 
 		if c.maximized or c.fullscreen then
-			c.height = c.height - util.scale(40)
+			c.height = c.height - dpi(45)
 		end
 
 		local menu = {
@@ -660,84 +689,134 @@ local function main(args)
 
 		get_clients_pids_with_pulse_sink_input_id()
 
+		local titlefont = "Roboto, Bold 11"--util.default(beautiful.titlebar_font, "Roboto, Semibold "..font_size)
 		c.titlebars.top = awful.titlebar(c, {
 			position = "top",
-			font     = util.default(beautiful.titlebar_font, "Roboto, Semibold "..font_size),
-			size     = util.scale(64),
+			font     = titlefont,
+			size     = dpi(45),
 			bg       = gears.color.transparent,
 			shape = function(cr, w, h)
-				gears.shape.rounded_rect(cr, w, h, util.scale(20))
+				gears.shape.rounded_rect(cr, w, h, dpi(14))
 			end,
 		})
-		local windows_title_widget = wibox.widget {
+		local client_title_widget = wibox.widget {
 			align  = "center",
 			--widget = awful.titlebar.widget.titlewidget(c),
 			text = c.name,
-			font = beautiful.titlebar_font or beautiful.font or ("Sans "..tostring(util.round(util.scale(12)))),
+			font = beautiful.titlebar_font or beautiful.font or ("Sans "..tostring(util.round(dpi(12)))),
 			widget = wibox.widget.textbox,
 		}
 		c.titlebars.top.widget = {
 			{
 				{
-					{
-						awful.titlebar.widget.floatingbutton(c),
-						awful.titlebar.widget.stickybutton(c),
-						awful.titlebar.widget.ontopbutton(c),
-						volume_slider {
-							client = c,
+					bg = gears.color {
+						type  = "linear",
+						from  = { 0, 0 },
+						to    = { 0, util.default(c.titlebars.top.size, c.titlebars.top.height, dpi(45)) },
+						stops = {
+							{ 0,    "#00000000" },
+							{ 0.85, "#00000008" },
+							{ 0.9,  "#00000020" },
+							{ 0.95, "#00000030" },
+							{ 1,    "#00000050" },
 						},
-						spacing = util.scale(2),
-						layout  = wibox.layout.fixed.horizontal(),
 					},
-					gen_tabbar(c, {
-						active_tab_bg = bg,
-						buttons = buttons,
-					}),
+					opacity = 0.5,
+					widget  = wibox.container.background,
+				},
+				{
 					{
-						awful.titlebar.widget.minimizebutton(c),
-						awful.titlebar.widget.maximizedbutton(c),
-						awful.titlebar.widget.closebutton(c),
-						spacing = util.scale(2),
-						layout  = wibox.layout.fixed.horizontal(),
+						absolute_center(
+							{
+								awful.titlebar.widget.floatingbutton(c),
+								awful.titlebar.widget.stickybutton(c),
+								awful.titlebar.widget.ontopbutton(c),
+								volume_slider {
+									client = c,
+								},
+								spacing = dpi(2),
+								layout  = wibox.layout.fixed.horizontal(),
+							},
+							--gen_tabbar(c, {
+							--	active_tab_bg = bg,
+							--	buttons = buttons,
+							--}),
+							{
+								id      = "title_role",
+								font    = titlefont,
+								halign  = "center",
+								buttons = buttons,
+								widget  = wibox.widget.textbox,
+							},
+							{
+								awful.titlebar.widget.minimizebutton(c),
+								awful.titlebar.widget.maximizedbutton(c),
+								awful.titlebar.widget.closebutton(c),
+								spacing = dpi(2),
+								layout  = wibox.layout.fixed.horizontal(),
+							},
+							--layout = wibox.layout.align.horizontal,
+							buttons,
+							function(w)
+								function c:_update_title(title)
+									util.for_children(w, "title_role", function(child)
+										child.text = title
+									end)
+								end
+
+								c:_update_title(c.name)
+
+								c:connect_signal("property::name", function(self)
+									if self._has_app_title then return end
+									self:_update_title(self.name)
+								end)
+
+								awesome.connect_signal("titlebars::update_app_data", function(self)
+									self._has_app_title = true
+									self:_update_title(self._app_data.Name)
+								end)
+
+								awesome.emit_signal("all_apps::get", function(all_apps)
+									if not all_apps then
+										return
+									end
+
+									for k, app in pairs(all_apps) do
+										if app.StartupWMClass == c.class and app.Name then
+											client_title_widget.text = app.Name
+											--c._app_title = app.Name
+											--c._app_icon  = app.icon_path
+											--c._app_cmd   = app.cmdline
+											c._app_data  = app
+											awesome.emit_signal("titlebars::update_app_data", c)
+										end
+									end
+								end)
+							end
+						),
+						left   = dpi(2.5),
+						right  = dpi(2.5),
+						widget = wibox.container.margin,
 					},
-					layout = wibox.layout.align.horizontal
-				},
-				bg = gears.color {
-					type  = "linear",
-					from  = { 0, 0 },
-					to    = { 0, util.default(c.titlebars.top.size, c.titlebars.top.height, util.scale(64)) },
-					stops = {
-						{ 0, "#FFFFFF08" },
-						{ 1, "#FFFFFF00" },
+					bg = gears.color {
+						type  = "linear",
+						from  = { 0, 0 },
+						to    = { 0, util.default(c.titlebars.top.size, c.titlebars.top.height, dpi(45)) },
+						stops = {
+							{ 0, "#FFFFFF08" },
+							{ 1, "#FFFFFF00" },
+						},
 					},
+					widget = wibox.container.background,
 				},
-				widget = wibox.container.background,
+				layout = wibox.layout.stack,
 			},
 			bg = beautiful.bg_normal,
 			--bg = bg,--util.default(beautiful.titlebar_bg_normal, beautiful.accent_bright, bg),
 			widget = wibox.container.background,
 		}
 
-		--notify(("%s -> %.4f %.4f %.4f"):format(beautiful.color.blue, gears.color.parse_color(beautiful.color.blue)), 0)
-		--notify(("%s -> %.4f %.4f %.4f"):format(util.color.alter_hsl(beautiful.color.blue, { l = 0.0 }, "add"), gears.color.parse_color(util.color.alter_hsl(beautiful.color.blue, { l = 0.0 }, "add"))), 0)
-
-		awesome.emit_signal("all_apps::get", function(all_apps)
-			if not all_apps then
-				return
-			end
-
-			for k, app in pairs(all_apps) do
-				if app.StartupWMClass == c.class and app.Name then
-					windows_title_widget.text = app.Name
-					c._app_title = app.Name
-					c._app_icon  = app.icon_path
-					c._app_cmd   = app.cmdline
-					c._app_data  = app
-					awesome.emit_signal("titlebars::update_app_data", c)
-				end
-			end
-		end)
-
+		--- Draw a gradient with the length of the titlebar
 		--c:connect_signal("property::geometry", function(c)
 		--	titlebars.top.widget.bg = gears.color {
 		--		type = "linear",
@@ -750,6 +829,7 @@ local function main(args)
 		--	}
 		--end)
 
+		--[==[
 		--notify(beautiful.titlebar_width)
 		c.titlebars.bottom = awful.titlebar(c, {
 			position = "bottom",
@@ -806,13 +886,14 @@ local function main(args)
 			bg     = bg,--util.default(beautiful.titlebar_bg, beautiful.accent_dark, "#DBE1EC"),
 			widget = wibox.container.background,
 		}
+		--]==]
 
-		c._titlebar_sizes = {
-			top    = c.titlebars.top.size    or c.titlebars.top.height,
-			bottom = c.titlebars.bottom.size or c.titlebars.bottom.height,
-			left   = c.titlebars.left.size   or c.titlebars.left.width,
-			right  = c.titlebars.right.size  or c.titlebars.right.width,
-		}
+		--c._titlebar_sizes = {
+		--	top    = c.titlebars.top.size    or c.titlebars.top.height,
+		--	bottom = c.titlebars.bottom.size or c.titlebars.bottom.height,
+		--	left   = c.titlebars.left.size   or c.titlebars.left.width,
+		--	right  = c.titlebars.right.size  or c.titlebars.right.width,
+		--}
 	end)
 end
 

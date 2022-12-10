@@ -163,7 +163,7 @@ local theme_dir = gears.filesystem.get_configuration_dir().."themes/"..globals.t
 beautiful.init(theme_dir.."/theme.lua")
 
 local bling = require("modules.external.bling") -- needs to be loaded after running beautiful.init
-bling.module.flash_focus.enable()
+--bling.module.flash_focus.enable()
 
 local playerctl_cli = require("modules.lib.playerctl_cli")
 playerctl_cli()
@@ -896,14 +896,24 @@ screen.connect_signal("request::desktop_decoration", function(s)
 
 	s.panel_blocks.center = wibox.widget {
 		s.widgets.dock,
-		wibox.widget.separator {
-			orientation = "vertical",
-			span_ratio = 0.8,
+		{
+			id            = "separator_role",
+			orientation  = "vertical",
+			span_ratio   = 0.75,
 			forced_width = util.scale(5),
+			widget       = wibox.widget.separator,
 		},
 		s.widgets.tasklist,
 		layout = wibox.layout.fixed.horizontal,
 	}
+
+	util.for_children(s.panel_blocks.center, "separator_role", function(child)
+		awesome.connect_signal("active_client_count_changed", function(s_sig, count)
+			if s_sig ~= s then return end
+
+			child.visible = count > 0
+		end)
+	end)
 
 	--awesome.connect_signal("slimeos::dock::favorites_update", function(favorites)
 	--	s.panel_blocks.center:emit_signal("widget::redraw_needed")
@@ -986,6 +996,7 @@ screen.connect_signal("request::desktop_decoration", function(s)
 				return
 			end
 
+			--awesome.emit_signal("tag::switched")
 			for _, c in pairs(self.clients) do
 				local screen_tags, client_tags = self.selected_tags, c:tags()
 
@@ -1006,6 +1017,8 @@ screen.connect_signal("request::desktop_decoration", function(s)
 
 		client.connect_signal("property::minimized", function(c) s:update_bar_shape() end)
 		client.connect_signal("property::maximized", function(c) s:update_bar_shape() end)
+		client.connect_signal("manage",              function(c) s:update_bar_shape() end)
+		client.connect_signal("unmanage",            function(c) s:update_bar_shape() end)
 		for _, t in pairs(s.tags) do
 			t:connect_signal("property::selected", function(c) s:update_bar_shape() end)
 		end
@@ -1677,18 +1690,28 @@ client.connect_signal("property::ontop", function(c)
 	end
 end)
 
--- Enable sloppy focus, so that focus follows mouse.
-client.connect_signal("mouse::enter", function(c)
-	if c.focusable ~= false then
-		client.focus = c
+--- Enable sloppy focus, so that focus follows mouse.
+do
+	local function switch_client(c)
+		if c.focusable ~= false then
+			client.focus = c
+		end
+
+		c:activate {
+			context = "mouse_enter",
+			raise   = false,
+		}
 	end
 
-	c:activate {
-		context = "mouse_enter",
-		raise   = false,
-	}
-end)
+	client.connect_signal("mouse::enter", switch_client)
 
+	--awesome.connect_signal("tag::switched", function()
+	--	local c = mouse.current_client
+	--	if not c then return end
+	--	--notify(c)
+	--	switch_client(c)
+	--end)
+end
 --[[
 do
 	local rasti_launcher = require("modules.widgets.rasti_launcher")
@@ -2158,19 +2181,6 @@ do
 	local picom = require("modules.lib.picom")
 end
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 do
 	local wb = wibox {
 		type = "desktop",
@@ -2196,7 +2206,7 @@ do
 				},
 				{
 					wibox.widget.textbox("center"),
-					bg     = "#000000",--"#80000040",
+					bg     = "#80000040",
 					fg     = gears.color {
 						type  = "linear",
 						from  = { 0, 0 },
@@ -2221,5 +2231,19 @@ do
 			},
 			layout = wibox.layout.stack,
 		}
+	}
+end
+
+do
+	local cg = collectgarbage
+	cg("setpause", 110)
+	cg("setstepmul", 1000)
+	gears.timer {
+		timeout   = 5,
+		autostart = true,
+		call_now  = true,
+		callback  = function()
+			cg("collect")
+		end,
 	}
 end

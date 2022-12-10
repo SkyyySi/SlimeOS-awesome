@@ -6,13 +6,9 @@ local glib, gio, gtk, cairo, playerctl
 
 local menubar_utils = require("menubar.utils")
 
-pcall(function()
-	gtk = lgi.Gtk
-end)
-
 glib      = lgi.GLib
 gio       = lgi.Gio
-gtk       = lgi.Gtk
+gtk       = lgi.require("Gtk", "3.0")
 cairo     = lgi.cairo
 playerctl = lgi.Playerctl
 

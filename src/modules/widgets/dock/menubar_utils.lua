@@ -132,13 +132,9 @@ local all_icon_sizes = {
 --- List of supported icon exts.
 local supported_icon_file_exts = { png = 1, xpm = 2, svg = 3 }
 
-local icon_lookup_path = nil
-
 --- Get a list of icon lookup paths, uncached.
 -- @treturn table A list of directories, without trailing slash.
 function utils.get_icon_lookup_paths_uncached()
-    if icon_lookup_path then return icon_lookup_path end
-
     local function ensure_args(t, paths)
         if type(paths) == 'string' then paths = { paths } end
         return t or {}, paths
@@ -166,7 +162,7 @@ function utils.get_icon_lookup_paths_uncached()
         return t
     end
 
-    icon_lookup_path = {}
+    local icon_lookup_path = {}
     local theme_priority = { 'hicolor' }
     if theme.icon_theme then table.insert(theme_priority, 1, theme.icon_theme) end
 
