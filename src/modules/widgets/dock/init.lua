@@ -182,11 +182,13 @@ local mt = {}
 mt.__index = mt
 setmetatable(dock, mt)
 
+dock.generic_app_icon = gears.surface.load_silently(menubar_utils.lookup_icon("application-x-executable"))
+
 function dock.gen_fav_widget(args, app)
 	local cur = menubar_utils.parse_desktop_file("/usr/share/applications/"..app)
 	if not cur then return end
 
-	local icon = cur.icon_path or menubar_utils.lookup_icon(cur.Icon) or beautiful.awesome_icon
+	local icon = cur.icon_path or menubar_utils.lookup_icon(cur.Icon) or dock.generic_app_icon
 
 	--if app == "firefox.desktop" and not _HGZFJHRFG then
 	--	_HGZFJHRFG = app.." "..util.table_to_string(cur)

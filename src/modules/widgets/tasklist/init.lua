@@ -16,6 +16,7 @@ local app_title_map = {}
 local app_icon_map = {}
 local app_desktop_map = {}
 local app_data_map = {}
+local generic_app_icon = gears.surface.load_silently(menubar_utils.lookup_icon("application-x-executable"))
 local function update_app_maps(cb)
 	awesome.emit_signal("all_apps::get", function(all_apps)
 		if not all_apps then
@@ -27,7 +28,7 @@ local function update_app_maps(cb)
 			if app.file then
 				desktop_file = app.file:gsub("^.*/", ""):match("(.*)%.desktop$")
 				app_title_map[desktop_file]   = app_title_map[desktop_file]   or app.Name      or "???"
-				app_icon_map[desktop_file]    = app_icon_map[desktop_file]    or app.icon_path or beautiful.awesome_icon
+				app_icon_map[desktop_file]    = app_icon_map[desktop_file]    or app.icon_path or generic_app_icon
 				app_desktop_map[desktop_file] = app_desktop_map[desktop_file] or app.file
 				app_data_map[desktop_file]    = app_data_map[desktop_file]    or app
 			end
@@ -36,7 +37,7 @@ local function update_app_maps(cb)
 
 			if class then
 				app_title_map[class]   = app_title_map[class]   or app.Name      or "???"
-				app_icon_map[class]    = app_icon_map[class]    or app.icon_path or beautiful.awesome_icon
+				app_icon_map[class]    = app_icon_map[class]    or app.icon_path or generic_app_icon
 				app_desktop_map[class] = app_desktop_map[class] or app.file
 				app_data_map[class]    = app_data_map[class]    or app
 			end
@@ -319,7 +320,7 @@ function tasklist:new(args)
 					end
 
 					local app = app_data_map[c.class]
-					if app and next(app.actions_table) ~= nil then
+					if app and app.actions_table and next(app.actions_table) ~= nil then
 						table.insert(c._right_click_menu.items, { "-----------" })
 
 						for _, action in pairs(app.actions_table) do
@@ -512,9 +513,9 @@ function tasklist:new(args)
 
 				local proper_client_icon
 				local function update_client_icon()
-					proper_client_icon = beautiful.awesome_icon
+					proper_client_icon = generic_app_icon
 					if pcall(function() return c.valid end) and c.valid then
-						proper_client_icon = app_icon_map[c.class] or c.icon or beautiful.awesome_icon
+						proper_client_icon = app_icon_map[c.class] or c.icon or generic_app_icon
 					end
 					for _, child in pairs(self:get_children_by_id("clienticon")) do
 						child.image = proper_client_icon

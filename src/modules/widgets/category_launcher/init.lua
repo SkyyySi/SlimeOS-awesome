@@ -374,12 +374,14 @@ local function flexi_launcher(args)
 	--- immediatly. Instead, you should use a callback. This is, however, OK to use
 	--- if your code is written with that in mind, for example when accessing it lazily
 	--- (in that case, make sure to check that `fl.generated` == true).
-	local fl = {
-		generated = false,
-		show = nop,
-		hide = nop,
-		toggle = nop,
+	local fl = gears.object {
+		enable_properties = true,
+		enable_auto_signals = true,
 	}
+	fl.generated = false
+	fl.show = nop
+	fl.hide = nop
+	fl.toggle = nop
 
 	all_apps:run(function(apps) ---@param apps FreeDesktop.desktop_entry[]
 		---@type table<string, {apps: FreeDesktop.desktop_entry[], name: string, icon?: string}>
@@ -417,6 +419,8 @@ local function flexi_launcher(args)
 			fl.categories[cat].icon = menubar_utils.lookup_icon(all_apps.category_icon_map[cat])
 		end)
 
+		fl.generic_app_icon = gears.surface.load_silently(menubar_utils.lookup_icon("application-x-executable"))
+
 		for app in apps do
 			if app.Categories then
 				for _, app_category in pairs(app.Categories) do
@@ -429,11 +433,16 @@ local function flexi_launcher(args)
 			else
 				table.insert(fl.categories.Other.apps, app)
 			end
+
+			if not app.Icon then
+				app.Icon = "application-x-executable"
+				app.icon_path = fl.generic_app_icon
+			end
 		end
 
 		for _, category in pairs(fl.categories) do
 			table.sort(category.apps, function(a, b)
-				return a.Name < b.Name
+				return a.Name:lower() < b.Name:lower()
 			end)
 		end
 
@@ -638,7 +647,7 @@ local function flexi_launcher(args)
 								orientation   = "vertical",
 								spacing       = util.scale(10),
 								min_cols_size = util.scale(160),
-								forced_width  = util.scale(160),
+								--forced_width  = util.scale(160),
 								layout        = wibox.layout.grid,
 							},
 							right  = util.scale(10),
@@ -674,42 +683,108 @@ local function flexi_launcher(args)
 			return widget
 		end
 
+		function fl:gen_category_switcher_button(name)
+			local function shape(cr, w, h)
+				gears.shape.rounded_rect(cr, w, h, util.scale(15))
+			end
+
+			local widget = wibox.widget(util.default(args.category_button_template, {
+				{
+					{
+						{
+							{
+								id     = "icon_role",
+								widget = wibox.widget.imagebox,
+							},
+							{
+								id     = "text_role",
+								widget = wibox.widget.textbox,
+							},
+							spacing = util.scale(5),
+							layout  = wibox.layout.fixed.horizontal,
+						},
+						margins = util.scale(5),
+						widget  = wibox.container.margin,
+					},
+					id     = "background_role",
+					shape  = shape,
+					widget = wibox.container.background,
+				},
+				strategy = "max",
+				width    = util.scale(170),
+				height   = util.scale(35),
+				widget   = wibox.container.constraint,
+			}))
+
+			for_children(widget, "icon_role", function(child)
+				child.image = menubar_utils.lookup_icon(all_apps.category_icon_map[name])
+			end)
+
+			for_children(widget, "text_role", function(child)
+				child.markup = all_apps.category_name_map[name]
+			end)
+
+			for_children(widget, "background_role", function(child)
+				buttonify {
+					widget = child,
+					button_callback_hover = function()
+						self:emit_signal("category::switch", name)
+					end,
+				}
+			end)
+
+			return widget
+		end
+
 		function fl:gen_category_switcher_widget()
 			local function shape(cr, w, h)
 				gears.shape.rounded_rect(cr, w, h, util.scale(15))
 			end
 
-			local widget = wibox.widget(util.default(args.widget_template, {
+			local widget = wibox.widget(util.default(args.category_switcher_template, {
 				{
 					{
 						{
-							id            = "button_holder_role",
-							homogeneous   = true,
-							expand        = true,
-							orientation   = "vertical",
-							spacing       = util.scale(5),
-							min_cols_size = util.scale(160),
-							forced_width  = util.scale(160),
-							layout        = wibox.layout.grid,
+							{
+								id      = "widget_holder_role",
+								spacing = util.scale(5),
+								layout  = wibox.layout.flex.vertical,
+							},
+							margins = util.scale(5),
+							widget  = wibox.container.margin,
 						},
-						margins = util.scale(5),
-						widget  = wibox.container.margin,
+						layout = wibox.layout.overflow.vertical,
 					},
-					layout = wibox.layout.overflow.vertical,
+					bg     = "#FFFFFF10",
+					shape  = shape,
+					widget = wibox.container.background,
 				},
-				bg     = "#FFFFFF10",
-				shape  = shape,
-				widget = wibox.container.background,
+				strategy = "max",
+				width    = util.scale(150),
+				widget   = wibox.container.constraint,
 			}))
 
-			function widget:add_app(app)
-				for_children(widget, "button_holder_role", function(child)
-					child:add(app)
+			function widget:add(w)
+				for_children(widget, "widget_holder_role", function(child)
+					child:add(w)
 				end)
 			end
 
 			return widget
 		end
+
+		local category_switcher = fl:gen_category_switcher_widget()
+		category_switcher:add(fl:gen_category_switcher_button("All"))
+		category_switcher:add(fl:gen_category_switcher_button("Favorites"))
+		category_switcher:add(wibox.widget { --- TODO: Make this templatable
+			shape       = gears.shape.rounded_bar,
+			orientation = "horizontal",
+			forced_height = util.scale(2),
+			widget      = wibox.widget.separator,
+		})
+		fl:for_category_names(function(name)
+			category_switcher:add(fl:gen_category_switcher_button(name))
+		end)
 
 		--[[ Test code; to be removed
 		do
@@ -754,21 +829,21 @@ local function flexi_launcher(args)
 		fl.app_pages = {}
 		fl:for_category_names(function(name)
 			local list = fl:gen_app_list_widget()
-			table.insert(fl.app_pages, list)
+			fl.app_pages[name] = list
 
 			for _, app in pairs(fl.categories[name].apps) do
 				list:add_app(gen_app_button(app, list))
 			end
 		end)
 		-- Special categories
-		fl.app_pages._all_apps = fl:gen_app_list_widget()
+		fl.app_pages.All = fl:gen_app_list_widget()
 		for i = 1, #apps do
-			fl.app_pages._all_apps:add_app(gen_app_button(apps[i], fl.app_pages._all_apps))
+			fl.app_pages.All:add_app(gen_app_button(apps[i], fl.app_pages.All))
 		end
 		fl.app_pages._search_results = fl:gen_app_list_widget()
-		fl.app_pages._favorites = fl:gen_app_list_widget()
+		fl.app_pages.Favorites = fl:gen_app_list_widget()
 
-		function fl.app_pages._favorites:refresh()
+		function fl.app_pages.Favorites:refresh()
 			awesome.emit_signal("slimeos::dock::favorites::get", function(favorites)
 				self:clear()
 				for _, fav in pairs(favorites) do
@@ -779,7 +854,7 @@ local function flexi_launcher(args)
 		end
 
 		fl.search_prompt_is_running = false
-		fl._current_page = fl.app_pages._all_apps
+		fl._current_page = fl.app_pages.All
 
 		function fl:get_current_page()
 			return self._current_page
@@ -802,8 +877,24 @@ local function flexi_launcher(args)
 							{
 								nil,
 								{
-									id     = "app_grid_role",
-									layout = wibox.layout.flex.horizontal,
+									nil,
+									{
+										id     = "app_list_role",
+										layout = wibox.layout.fixed.horizontal,
+									},
+									{
+										{
+											color = gears.color.transparent,
+											forced_width = util.scale(20),
+											widget = wibox.widget.separator,
+										},
+										{
+											id     = "category_switcher_role",
+											layout = wibox.layout.fixed.horizontal,
+										},
+										layout  = wibox.layout.fixed.horizontal,
+									},
+									layout  = wibox.layout.align.horizontal,
 								},
 								{
 									id     = "search_prompt_role",
@@ -822,25 +913,34 @@ local function flexi_launcher(args)
 					},
 					strategy = "exact",
 					width    = util.scale(600),
-					height   = util.scale(700),
+					height   = util.scale(800),
 					widget   = wibox.container.constraint,
 				},
 			}))
 
-			for_children(fl.container.widget, "app_grid_role", function(child)
+			for_children(fl.container.widget, "app_list_role", function(child)
 				child:add(fl:get_current_page())
+			end)
+
+			for_children(fl.container.widget, "category_switcher_role", function(child)
+				child:add(category_switcher)
 			end)
 		end
 
 		function fl:set_current_page(page)
 			self._current_page = page
-			for_children(self.container.widget, "app_grid_role", function(child)
+			for_children(self.container.widget, "app_list_role", function(child)
 				child:remove(1)
 				child:add(page)
 				child:emit_signal("widget::layout_changed")
 				child:emit_signal("widget::redraw_needed")
 			end)
 		end
+
+		fl:connect_signal("category::switch", function(self, name)
+			--notify(ttss(self.app_pages))
+			self:set_current_page(self.app_pages[name])
+		end)
 
 		do
 			local prev_page, search_result
@@ -917,7 +1017,7 @@ local function flexi_launcher(args)
 
 		function fl:show(placement_fn)
 			--self.awful_menu:show()
-			--self.app_pages._favorites:refresh()
+			self.app_pages.Favorites:refresh()
 			--self:set_current_page(fl.app_grids._favorites)
 			self.visible = true
 			self.container.visible = true
@@ -1046,7 +1146,7 @@ local function category_launcher(args)
 		end
 		for _, cat in pairs(categorized_apps) do
 			table.sort(categorized_apps, function(a, b)
-				return a.Name < b.Name
+				return a.Name:lower() < b.Name:lower()
 			end)
 		end
 		table.sort(category_names)
@@ -1753,12 +1853,9 @@ local function category_launcher(args)
 					widget = wibox.container.background,
 				}, util.scale(60), util.scale(60))
 			end)
-
-			--child.image = beautiful.awesome_icon
 		end
 
 		for _, child in ipairs(rasti_menu_wibox.user_info:get_children_by_id("user-name-role")) do
-			--awful.spawn.easy_async({ "whoami" }, function(stdout, stderr, reason, exit_code)
 			awful.spawn.easy_async_with_shell([[getent passwd "${USER:-$(whoami)}" | cut -d ':' -f 5 | cut -d ',' -f 1]], function(stdout, stderr, reason, exit_code)
 				local full_name = (stdout or "NAME NOT FOUND"):gsub("\n", "")
 				child.text = full_name
