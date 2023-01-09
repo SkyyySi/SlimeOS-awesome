@@ -358,9 +358,10 @@ local function nop() end
 local function flexi_launcher(args)
 	args = util.default(args, {})
 	args.auto_close = util.default(args.auto_close, false) --- Automatically close wheneven the cursor leaves the container
-	args.id = util.default(args.id, args.screen) --- Used to summon it with a signal, in order to allow as many different launchers as the user desires
+	--args.id = util.default(args.id, args.screen) --- Used to summon it with a signal, in order to allow as many different launchers as the user desires
 
 	args.app_template = args.app_template --- For each individual app, like Firefox, VLC, VScode, etc.
+	args.app_list_template = args.app_list_template --- For the widget that will hold app widgets (generated from `args.app_template`)
 	args.widget_template = args.widget_template --- For the wibox.widget that'll hold the apps
 	args.container = util.default(args.container, awful.popup) --- A container box, must have an API similar to a wibox, like awful.popup
 	args.container_template = args.container_template --- Template for the wibox/popup/bar/etc.
@@ -369,6 +370,8 @@ local function flexi_launcher(args)
 	--- which would mean that we'd only need to create one instance for multiple screens.
 	args.screen = util.default(args.screen, screen.primary)
 	args.placement_fn = util.default(args.placement_fn, function(w) awful.placement.bottom_left(w, { honor_workarea = true, margins = util.scale(10) }) end)
+
+	args.start_visible = args.start_visible
 
 	--- IMPORTANT: Although this is returned, you should not rely on it being populated
 	--- immediatly. Instead, you should use a callback. This is, however, OK to use
@@ -382,6 +385,38 @@ local function flexi_launcher(args)
 	fl.show = nop
 	fl.hide = nop
 	fl.toggle = nop
+
+	do
+		--- People don't tend to change their name all that often, especially not
+		--- within one session, so we cache it.
+		local name_cached
+
+		--- Get the full user name (i.e. "Tom Smith" instead of "tom") asynchronously
+		---@param callback fun(name: string)
+		function fl:get_full_user_name(callback)
+			if name_cached then
+				callback(name_cached)
+				return
+			end
+
+			awful.spawn.easy_async_with_shell([[getent passwd "${USER:-$(whoami)}" | cut -d ':' -f 5 | cut -d ',' -f 1]], function(stdout, stderr, reason, exit_code)
+				if not stdout or stdout:match("^%s*$") then
+					awful.spawn.easy_async_with_shell([[echo "${USER:-$(whoami)"]], function(stdout2, stderr2, reason2, exit_code2)
+						local stripped_name = util.strip(stdout2)
+						if not stripped_name or stripped_name:match("^%s*$") then
+							callback("NAME NOT FOUND")
+							return
+						end
+						name_cached = stripped_name
+						callback(stripped_name)
+					end)
+				else
+					local full_name = stdout:gsub("\n", "")
+					callback(full_name)
+				end
+			end)
+		end
+	end
 
 	all_apps:run(function(apps) ---@param apps FreeDesktop.desktop_entry[]
 		---@type table<string, {apps: FreeDesktop.desktop_entry[], name: string, icon?: string}>
@@ -611,7 +646,7 @@ local function flexi_launcher(args)
 					button_callback_release = function(w, b)
 						if b == 1 then
 							awful.spawn(app.cmdline)
-							awesome.emit_signal("flexi_launcher::visibility::hide", args.id)
+							fl:hide(true)
 						elseif b == 3 then
 							awesome.emit_signal("flexi_launcher::collapse_right_click_menus_except", right_click_menu)
 							right_click_menu:show()
@@ -636,7 +671,7 @@ local function flexi_launcher(args)
 				gears.shape.rounded_rect(cr, w, h, util.scale(15))
 			end
 
-			local widget = wibox.widget(util.default(args.widget_template, {
+			local widget = wibox.widget(util.default(args.app_list_template, {
 				{
 					{
 						{
@@ -710,7 +745,7 @@ local function flexi_launcher(args)
 					shape  = shape,
 					widget = wibox.container.background,
 				},
-				strategy = "max",
+				strategy = "exact",
 				width    = util.scale(170),
 				height   = util.scale(35),
 				widget   = wibox.container.constraint,
@@ -744,16 +779,17 @@ local function flexi_launcher(args)
 			local widget = wibox.widget(util.default(args.category_switcher_template, {
 				{
 					{
+						nil,
 						{
 							{
 								id      = "widget_holder_role",
 								spacing = util.scale(5),
-								layout  = wibox.layout.flex.vertical,
+								layout  = wibox.layout.fixed.vertical,
 							},
 							margins = util.scale(5),
 							widget  = wibox.container.margin,
 						},
-						layout = wibox.layout.overflow.vertical,
+						layout = wibox.layout.align.vertical,
 					},
 					bg     = "#FFFFFF10",
 					shape  = shape,
@@ -774,13 +810,18 @@ local function flexi_launcher(args)
 		end
 
 		local category_switcher = fl:gen_category_switcher_widget()
+		--- TODO: Instead of adding fixed elements, this should be templated;
+		--- a string could be interpreted as a category button to auto-generate,
+		--- while a table is taken as a raw widget.
 		category_switcher:add(fl:gen_category_switcher_button("All"))
 		category_switcher:add(fl:gen_category_switcher_button("Favorites"))
 		category_switcher:add(wibox.widget { --- TODO: Make this templatable
-			shape       = gears.shape.rounded_bar,
-			orientation = "horizontal",
-			forced_height = util.scale(2),
-			widget      = wibox.widget.separator,
+			shape         = gears.shape.rounded_bar,
+			orientation   = "horizontal",
+			span_ratio    = 0.75,
+			opacity       = 0.5,
+			forced_height = util.scale(1),
+			widget        = wibox.widget.separator,
 		})
 		fl:for_category_names(function(name)
 			category_switcher:add(fl:gen_category_switcher_button(name))
@@ -854,10 +895,118 @@ local function flexi_launcher(args)
 		end
 
 		fl.search_prompt_is_running = false
-		fl._current_page = fl.app_pages.All
+		fl._current_page = fl.app_pages[args.default_page] or fl.app_pages.All
 
 		function fl:get_current_page()
 			return self._current_page
+		end
+
+		do
+			fl.power_menu_button = wibox.widget {
+				{
+					{
+						image  = menubar_utils.lookup_icon("system-shutdown-symbolic"), --menubar_utils.lookup_icon("system-shutdown"),
+						widget = wibox.widget.imagebox,
+					},
+					margins = util.scale(5),
+					widget  = wibox.container.margin,
+				},
+				shape  = function(cr, w, h)
+					gears.shape.rounded_rect(cr, w, h, util.scale(4))
+				end,
+				forced_height = util.scale(40),
+				widget = wibox.container.background,
+			}
+
+			fl.power_menu_options = wibox.widget {
+				{
+					{
+						image  = menubar_utils.lookup_icon("arrow-right"),
+						widget = wibox.widget.imagebox,
+					},
+					margins = util.scale(5),
+					widget  = wibox.container.margin,
+				},
+				shape  = function(cr, w, h)
+					gears.shape.rounded_rect(cr, w, h, util.scale(4))
+				end,
+				forced_height = util.scale(40),
+				widget = wibox.container.background,
+			}
+
+			fl.power_menu = wibox.widget {
+				{
+					{
+						{
+							fl.power_menu_button,
+							right  = util.scale(1),
+							widget = wibox.container.margin,
+						},
+						fl.power_menu_options,
+						layout = wibox.layout.fixed.horizontal
+					},
+					shape  = function(cr, w, h)
+						gears.shape.rounded_rect(cr, w, h, util.scale(10))
+					end,
+					widget = wibox.container.background,
+				},
+				right  = util.scale(10),
+				bottom = util.scale(10),
+				widget = wibox.container.margin,
+			}
+
+			fl.power_menu = awful.menu {
+				items = {
+					{ "Lock session", "xdg-screensaver lock",           menubar_utils.lookup_icon("system-lock-screen") }, -- loginctl lock-session
+					{ "Shutdown",     "gnome-session-quit --power-off", menubar_utils.lookup_icon("system-shutdown") },
+					{ "Reboot",       "gnome-session-quit --reboot",    menubar_utils.lookup_icon("system-reboot") },
+					{ "Suspend",      "systemctl suspend",              menubar_utils.lookup_icon("system-suspend") },
+					{ "Hibernate",    "systemctl hibernate",            menubar_utils.lookup_icon("system-hibernate") },
+					{ "Log out",      "gnome-session-quit --logout",    menubar_utils.lookup_icon("system-log-out") },
+				},
+			}
+
+			buttonify {
+				fl.power_menu_button,
+				button_callback_release = function(w, b)
+					if b == 1 then
+						fl.power_menu:toggle()
+					elseif b == 3 then
+						fl.power_menu:toggle()
+					end
+				end,
+			}
+
+			buttonify {
+				fl.power_menu_options,
+				button_callback_release = function(w, b)
+					fl.power_menu:toggle()
+				end,
+			}
+
+			fl.terminal = wibox.widget {
+				{
+					{
+						image  = menubar_utils.lookup_icon("utilities-terminal-symbolic"), --menubar_utils.lookup_icon("system-shutdown"),
+						widget = wibox.widget.imagebox,
+					},
+					margins = util.scale(5),
+					widget  = wibox.container.margin,
+				},
+				shape  = function(cr, w, h)
+					gears.shape.rounded_rect(cr, w, h, util.scale(10))
+				end,
+				forced_height = util.scale(40),
+				widget = wibox.container.background,
+			}
+
+			buttonify {
+				fl.terminal,
+				button_callback_release = function(w, b)
+					awful.spawn(globals.terminal or terminal or "xterm")
+					fl:hide(true)
+				end,
+			}
 		end
 
 		do
@@ -871,51 +1020,84 @@ local function flexi_launcher(args)
 				screen  = args.screen,
 				bg      = gears.color.transparent,
 				shape   = shape,
-				widget  = {
+				widget  = wibox.widget.base.make_widget(),
+			}))
+
+			fl.container.widget = wibox.widget(util.default(args.widget_template, {
+				{
 					{
 						{
+							nil,
 							{
 								nil,
 								{
-									nil,
-									{
-										id     = "app_list_role",
-										layout = wibox.layout.fixed.horizontal,
-									},
-									{
-										{
-											color = gears.color.transparent,
-											forced_width = util.scale(20),
-											widget = wibox.widget.separator,
-										},
-										{
-											id     = "category_switcher_role",
-											layout = wibox.layout.fixed.horizontal,
-										},
-										layout  = wibox.layout.fixed.horizontal,
-									},
-									layout  = wibox.layout.align.horizontal,
+									id     = "app_list_role",
+									layout = wibox.layout.flex.horizontal,
 								},
 								{
-									id     = "search_prompt_role",
-									forced_height = util.scale(50),
-									widget = wibox.widget.textbox,
+									{
+										color = gears.color.transparent,
+										forced_width = util.scale(20),
+										widget = wibox.widget.separator,
+									},
+									{
+										id     = "category_switcher_role",
+										layout = wibox.layout.fixed.horizontal,
+									},
+									layout  = wibox.layout.fixed.horizontal,
 								},
-								spacing = util.scale(20),
-								layout  = wibox.layout.align.vertical,
+								layout  = wibox.layout.align.horizontal,
 							},
-							margins = util.scale(20),
-							widget  = wibox.container.margin,
+							{
+								nil,
+								{
+									{
+										id     = "search_prompt_role",
+										forced_height = util.scale(50),
+										widget = wibox.widget.textbox,
+									},
+									top    = util.scale(10),
+									widget = wibox.container.margin,
+								},
+								{
+									{
+										{
+											{
+												--{
+												--	id = "power_menu_button_role",
+												--	layout = wibox.layout.flex.horizontal,
+												--},
+												fl.power_menu_button,
+												right  = util.scale(1),
+												widget = wibox.container.margin,
+											},
+											fl.power_menu_options,
+											layout = wibox.layout.fixed.horizontal
+										},
+										shape  = function(cr, w, h)
+											gears.shape.rounded_rect(cr, w, h, util.scale(10))
+										end,
+										widget = wibox.container.background,
+									},
+									top    = util.scale(10),
+									widget = wibox.container.margin,
+								},
+								layout = wibox.layout.align.horizontal,
+							},
+							spacing = util.scale(20),
+							layout  = wibox.layout.align.vertical,
 						},
-						bg     = beautiful.bg_normal,
-						shape  = shape,
-						widget = wibox.container.background,
+						margins = util.scale(20),
+						widget  = wibox.container.margin,
 					},
-					strategy = "exact",
-					width    = util.scale(600),
-					height   = util.scale(800),
-					widget   = wibox.container.constraint,
+					bg     = beautiful.bg_normal,
+					shape  = shape,
+					widget = wibox.container.background,
 				},
+				strategy = "exact",
+				width    = util.scale(600),
+				height   = util.scale(800),
+				widget   = wibox.container.constraint,
 			}))
 
 			for_children(fl.container.widget, "app_list_role", function(child)
@@ -925,6 +1107,10 @@ local function flexi_launcher(args)
 			for_children(fl.container.widget, "category_switcher_role", function(child)
 				child:add(category_switcher)
 			end)
+
+			--for_children(fl.container.widget, "power_menu_button_role", function(child)
+			--	child:add(fl.power_menu_button)
+			--end)
 		end
 
 		function fl:set_current_page(page)
@@ -955,7 +1141,7 @@ local function flexi_launcher(args)
 						done_callback = function()
 							if prev_page then self:set_current_page(prev_page) end
 							search_result = nil
-							self:hide()
+							self:hide(true)
 						end,
 						exe_callback = function(input)
 							if not input or #input == 0 then return end
@@ -1038,7 +1224,11 @@ local function flexi_launcher(args)
 			self:show_search_prompt()
 		end
 
-		function fl:hide()
+		function fl:hide(auto_triggered)
+			if auto_triggered and args.disable_auto_hide then
+				return
+			end
+
 			--fl.awful_menu:hide()
 			self.visible = false
 			self.container.visible = false
@@ -1059,25 +1249,15 @@ local function flexi_launcher(args)
 			end
 		end
 
-		awesome.connect_signal("flexi_launcher::visibility::show", function(id, placement_fn)
-			if id == args.id then
-				fl:show(placement_fn)
-			end
-		end)
-
-		awesome.connect_signal("flexi_launcher::visibility::hide", function(id)
-			if id == args.id then
-				fl:hide()
-			end
-		end)
-
-		awesome.connect_signal("flexi_launcher::visibility::toggle", function(id)
-			if id == args.id then
-				fl:toggle()
-			end
-		end)
+		if args.start_visible then
+			fl:show()
+		end
 
 		fl.generated = true
+
+		if args.after_generation then
+			args.after_generation(fl)
+		end
 	end)
 
 	return fl
@@ -1920,7 +2100,7 @@ end
 
 return setmetatable({
 	category_launcher = category_launcher,
-	flexi_launcher = flexi_launcher
+	flexi_launcher = flexi_launcher,
 }, {
 	__call = function(self, ...)
 		return self.category_launcher(...)

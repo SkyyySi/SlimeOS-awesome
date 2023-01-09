@@ -753,10 +753,39 @@ screen.connect_signal("request::desktop_decoration", function(s)
 	--	screen = s,
 	--	menus  = menus,
 	--}
-	local flexi_launcher_id = s
 	s.widgets.flexi_launcher = category_launcher.flexi_launcher {
-		screen = flexi_launcher_id,
+		screen = s,
+		after_generation = function(self)
+			awesome.connect_signal("slimeos::toggle_launcher_visibility", function()
+				self:toggle()
+			end)
+		end,
 	}
+
+	--[==[
+	do
+		local geo = s.workarea
+		s.widgets.flexi_launcher_desktop = category_launcher.flexi_launcher {
+			screen = s,
+			disable_auto_hide = true,
+			start_visible = true,
+			placement_fn = awful.placement.centered,
+			container = wibox,
+			container_template = {
+				type = "desktop",
+				width = util.scale(600),
+				height = util.scale(600),
+				screen = s,
+				behind = true,
+				bg = util.color.alter(beautiful.bg_normal, { a = 0.9 }),
+			},
+			widget_template = {
+				id     = "app_list_role",
+				layout = wibox.layout.flex.horizontal,
+			},
+		}
+	end
+	--]==]
 
 	local menu_holder = {}
 	awesome.connect_signal("slimeos::menu_is_ready", function(menu)
@@ -796,7 +825,8 @@ screen.connect_signal("request::desktop_decoration", function(s)
 						--})
 						--awesome.emit_signal("slimeos::toggle_launcher", s)
 						--menu.main:toggle()
-						awesome.emit_signal("flexi_launcher::visibility::toggle", flexi_launcher_id)
+						--awesome.emit_signal("flexi_launcher::visibility::toggle", flexi_launcher_id)
+						awesome.emit_signal("slimeos::toggle_launcher_visibility")
 					elseif b == 2 then
 						menu.settings:toggle()
 					elseif b == 3 then
@@ -1624,15 +1654,17 @@ end
 
 _PLASMA_PANEL_OFFSET_X = -1920
 client.connect_signal("manage", function(c) ---@param c client._instance
-	if c.class == "Xfce4-panel" and c.type == "dock" then
+	if (c.class == "Xfce4-panel" or c.class == "Vala-panel") and c.type == "dock" then
 		--local sh = c.size_hints
 		--notify(util.table_to_string(sh), 0)
+		c.x = 0
 		c.y = 0
-		--c.focusable = false
+		c.focusable = false
 		--c.sticky = true
 		--c.above = true
 		c.sticky = true
 		c.focusable = false
+		c.border_width = 0
 	end
 
 	if c.class == "plasmashell" then

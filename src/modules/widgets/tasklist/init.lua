@@ -177,7 +177,7 @@ function tasklist:new(args)
 
 		local widget_bg = util.color.alter(beautiful.bg_normal, { a = 0.65 })
 
-		--[===[
+		--[== =[
 		local space = util.scale(10)
 		bling.widget.task_preview.enable {
 			width  = task_preview_geometry.width,
@@ -301,22 +301,29 @@ function tasklist:new(args)
 						c._right_click_menu.items[k] = nil
 					end
 
+					table.insert(c._right_click_menu.items, {
+						"Kill client",
+						function()
+							c:kill()
+						end
+					})
+
 					if favorites:has_favorite(desktop_file) then
-						c._right_click_menu.items[1] = {
+						table.insert(c._right_click_menu.items, {
 							"Remove from dock",
 							function()
 								current_menu_client = nil
 								awesome.emit_signal("slimeos::dock::favorites::remove", desktop_file)
 							end
-						}
+						})
 					else
-						c._right_click_menu.items[1] = {
+						table.insert(c._right_click_menu.items, {
 							"Pin to dock",
 							function()
 								current_menu_client = nil
 								awesome.emit_signal("slimeos::dock::favorites::add", desktop_file)
 							end
-						}
+						})
 					end
 
 					local app = app_data_map[c.class]

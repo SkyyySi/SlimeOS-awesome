@@ -195,16 +195,16 @@ local function set_xprop(window_id, prop_name, prop_value)
 	awful.spawn {"xprop", "-id", tostring(window_id), "-f", tostring(prop_name), "32c", "-set", "_PICOM_SHADOW", tostring(prop_value)}
 end
 
+local function c_is_valid(c)
+	return pcall(function() return c.valid end) and c.valid
+end
+
 local gen_tabbar
 do
 	local function clear(tb)
 		for k, _ in pairs(tb) do
 			tb[k] = nil
 		end
-	end
-
-	local function c_is_valid(c)
-		return pcall(function() return c.valid end) and c.valid
 	end
 
 	local mouse_over_tab_close_button = false
@@ -638,6 +638,36 @@ local function main(args)
 		border_radius = util.default(args.border_radius, beautiful.border_radius, 0)
 	}
 
+	local client_top_bg_cache = {}
+	local function update_bg(c, child)
+		if not c_is_valid(c) then return end
+		if c.active then
+			child.bg = util.default(client_top_bg_cache[c], beautiful.titlebar_bg_normal, beautiful.accent_bright, "#202020")
+			gears.timer.start_new(0.05, function()
+				local app_top_color
+				pcall(function()
+					local color = get_dominant_color(c)
+					assert(type(color) == "string", "Expected to get a color string")
+					child.bg = color
+					client_top_bg_cache[c] = color
+					app_top_color = color
+				end)
+
+				local chosen_color = util.default(app_top_color, beautiful.titlebar_bg_normal, beautiful.bg_normal, "#202020")
+				local bg_lightness = util.color.get_lightness(chosen_color)
+
+				child.bg = chosen_color
+				if bg_lightness < 0.5 then
+					child.fg = util.default(beautiful.titlebar_fg_normal, beautiful.fg_normal, "#D0D0D0")
+				else
+					child.fg = util.default(beautiful.titlebar_bg_normal, beautiful.bg_normal, "#202020")
+				end
+
+				return false
+			end)
+		end
+	end
+
 	client.connect_signal("request::titlebars", function(c)
 		if c.requests_no_titlebar then return end
 
@@ -708,22 +738,6 @@ local function main(args)
 		}
 		c.titlebars.top.widget = {
 			{
-				{
-					bg = gears.color {
-						type  = "linear",
-						from  = { 0, 0 },
-						to    = { 0, util.default(c.titlebars.top.size, c.titlebars.top.height, dpi(45)) },
-						stops = {
-							{ 0,    "#00000000" },
-							{ 0.85, "#00000008" },
-							{ 0.9,  "#00000020" },
-							{ 0.95, "#00000030" },
-							{ 1,    "#00000050" },
-						},
-					},
-					opacity = 0.5,
-					widget  = wibox.container.background,
-				},
 				{
 					{
 						absolute_center(
@@ -811,10 +825,21 @@ local function main(args)
 				},
 				layout = wibox.layout.stack,
 			},
+			id = "background_role",
 			bg = beautiful.bg_normal,
 			--bg = bg,--util.default(beautiful.titlebar_bg_normal, beautiful.accent_bright, bg),
 			widget = wibox.container.background,
 		}
+
+		function c:_update_titlebar_colors()
+			util.for_children(c.titlebars.top.widget, "background_role", function(child)
+				update_bg(c, child)
+			end)
+		end
+		c:_update_titlebar_colors()
+		c:connect_signal("property::active", function()
+			c:_update_titlebar_colors()
+		end)
 
 		--- Draw a gradient with the length of the titlebar
 		--c:connect_signal("property::geometry", function(c)
