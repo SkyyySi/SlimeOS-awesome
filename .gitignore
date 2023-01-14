@@ -4,3 +4,4 @@ local/
 src/env.sh
 .idea
 souei_transparent*.png
+src/modules/widgets/awesome_xdg_menu/menus.lua
