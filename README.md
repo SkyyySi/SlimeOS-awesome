@@ -1,5 +1,8 @@
 # SlimeOS-awesome
 
+> Deprecation notice:
+> This repository is unmaintained, see [github.com/SkyyySi/SlimeOS-yuescript](https://github.com/SkyyySi/SlimeOS-yuescript) for my actively developed dotfiles
+
 My dotfiles for the awesome window manager.
 
 ![SlimeOS screenshot](/assets/screenshot0.png)
